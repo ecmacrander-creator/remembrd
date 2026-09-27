@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>remembrd</title>
+<meta name="theme-color" content="#F4EEF1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#150D12" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="remembrd">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F4EEF1; --surface:#FFFFFF; --surface-2:#EBE0E6; --ink:#24121C; --ink-2:#56424D; --ink-3:#7D6874; --line:#E0D2DA;
+  --accent:#A23B72; --accent-hover:#8A2F60; --accent-ink:#FFFFFF; --accent-soft:#F6DDEA; --pop:#D9589B;
+  --good:#1E7A4C; --good-soft:#DDF1E6; --danger:#B3261E; --danger-soft:#F9E3E1;
+  --shadow:0 1px 2px rgba(36,18,28,.06),0 6px 20px rgba(36,18,28,.06);
+  --display:"Bricolage Grotesque","Figtree",system-ui,sans-serif;
+  --body:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"DM Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:16px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#150D12; --surface:#1F151B; --surface-2:#2B1F26; --ink:#F1E6EC; --ink-2:#C4B0BB; --ink-3:#9A8490; --line:#352832;
+    --accent:#EE8CC0; --accent-hover:#F4A6CF; --accent-ink:#2A0A1A; --accent-soft:#3A1D2D; --pop:#F4A6CF;
+    --good:#5CC592; --good-soft:#15301F; --danger:#F08A80; --danger-soft:#3A1D1B; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#150D12; --surface:#1F151B; --surface-2:#2B1F26; --ink:#F1E6EC; --ink-2:#C4B0BB; --ink-3:#9A8490; --line:#352832;
+  --accent:#EE8CC0; --accent-hover:#F4A6CF; --accent-ink:#2A0A1A; --accent-soft:#3A1D2D; --pop:#F4A6CF;
+  --good:#5CC592; --good-soft:#15301F; --danger:#F08A80; --danger-soft:#3A1D1B; --shadow:none;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;padding-bottom:env(safe-area-inset-bottom,0px);background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+[hidden]{display:none!important}
+.wrap{max-width:720px;margin:0 auto;padding-inline:16px}
+
+/* Header */
+.top{position:sticky;top:0;padding-top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:10px;padding-block:10px}
+.logo{display:flex;align-items:center;gap:9px;background:none;border:0;padding:0;min-width:0;text-align:left}
+.mark{width:34px;height:34px;border-radius:10px;flex:none;position:relative;overflow:hidden;background-color:#A23B72;
+  background-image:radial-gradient(circle at 24% 74%,rgba(255,255,255,.6) 0 1.6px,transparent 2px),radial-gradient(circle at 78% 80%,rgba(255,255,255,.5) 0 1.3px,transparent 1.7px),radial-gradient(circle at 80% 24%,rgba(255,255,255,.55) 0 1.1px,transparent 1.5px),linear-gradient(150deg,rgba(255,255,255,.16),rgba(255,255,255,0) 60%)}
+.mark::before{content:"";position:absolute;left:7px;right:7px;top:10px;height:3px;border-radius:3px;background:rgba(255,255,255,.9)}
+.mark::after{content:"";position:absolute;left:6px;top:8.5px;width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.55)}
+.word{font-family:var(--display);font-weight:800;font-size:25px;letter-spacing:-.035em;line-height:1}
+.word b{color:var(--pop);font-weight:800}
+.spacer{flex:1}
+.topnav{display:flex;gap:4px;padding-bottom:8px}
+.topnav button{border:0;background:none;border-radius:999px;padding:7px 12px;font-weight:700;font-size:14px;color:var(--ink-2);min-height:36px;display:inline-flex;align-items:center;gap:6px}
+.topnav button[aria-current="page"]{background:var(--ink);color:var(--bg)}
+.topnav .ct{font-family:var(--mono);font-size:11.5px;font-weight:500;background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:0 6px;min-width:18px;text-align:center}
+.iconbtn{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;color:var(--ink-2);flex:none}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:999px;border:1px solid var(--line);background:var(--surface);padding:9px 15px;font-weight:600;font-size:14px;white-space:nowrap;line-height:1.2;min-height:40px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:none;border-color:transparent;color:var(--ink-2)}
+.btn.danger{color:var(--danger)}
+.btn.danger.solid{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.big{width:100%;min-height:52px;font-size:16px;font-weight:700;border-radius:16px}
+.btn:disabled{opacity:.5;cursor:default}
+
+/* Capture */
+.capture{margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:12px;box-shadow:var(--shadow)}
+.capture textarea{width:100%;border:0;background:none;resize:none;min-height:76px;font-size:17px;line-height:1.45;padding:4px 4px 8px;outline:none}
+.capture textarea::placeholder{color:var(--ink-3)}
+.caprow{display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:10px}
+.shot{position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:8px 13px;font-weight:600;font-size:14px;color:var(--ink-2);min-height:40px;cursor:pointer;background:var(--surface)}
+.shot input{position:absolute;inset:0;opacity:0;font-size:0;cursor:pointer}
+.shot svg{color:var(--accent)}
+.pending{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+.pending .th{position:relative;width:64px;height:64px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.pending img{width:100%;height:100%;object-fit:cover}
+.pending .x{position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.62);color:#fff;font-size:12px;line-height:1}
+.keycard{background:var(--accent-soft);border-radius:var(--r);padding:14px 16px;margin-top:12px}
+.keycard h2{font-size:17px}
+
+/* Filters */
+.search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 14px;margin-top:16px}
+.search input{border:0;background:none;outline:none;width:100%;min-width:0;font-size:16px}
+.search svg{flex:none;color:var(--ink-3)}
+.chips{display:flex;gap:7px;overflow-x:auto;padding:12px 0 4px;margin:0 -16px;padding-inline:16px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 13px;font-size:14px;font-weight:600;color:var(--ink-2);min-height:38px}
+.chip .dot{width:8px;height:8px;border-radius:50%}
+.chip .n{font-family:var(--mono);font-size:12px;color:var(--ink-3);font-weight:400}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.chip[aria-pressed="true"] .n{color:inherit;opacity:.7}
+
+/* Notes */
+.day{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:700;margin:18px 2px 8px}
+.note{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:13px 14px;margin-bottom:10px;box-shadow:var(--shadow)}
+.nhead{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-3)}
+.cat{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--ink-2);background:var(--surface-2);border-radius:6px;padding:2px 8px;font-size:12.5px}
+.cat .dot{width:7px;height:7px;border-radius:50%}
+.nhead .t{font-family:var(--mono);margin-left:auto;white-space:nowrap}
+.note h3{font-size:17px;font-weight:700;margin-top:6px;line-height:1.3}
+.ntext{margin-top:4px;color:var(--ink-2);white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px}
+.nimg{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}
+.nimg button{all:unset;cursor:zoom-in;width:72px;height:72px;border-radius:10px;overflow:hidden;background:var(--surface-2)}
+.nimg img{width:100%;height:100%;object-fit:cover;display:block}
+.sorting{display:inline-flex;align-items:center;gap:6px;color:var(--ink-3);font-size:12.5px;font-weight:600}
+.ev{display:flex;align-items:center;gap:10px;margin-top:10px;background:var(--accent-soft);border-radius:12px;padding:10px 12px}
+.ev .cal{flex:none;width:42px;text-align:center;background:var(--surface);border-radius:9px;padding:3px 0 4px;line-height:1.1}
+.ev .cal .m{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);font-weight:700}
+.ev .cal .d{font-family:var(--display);font-size:19px;font-weight:800}
+.ev .info{flex:1;min-width:0}
+.ev .info b{display:block;font-size:14.5px;line-height:1.3}
+.ev .info span{font-size:13px;color:var(--ink-2)}
+.ev .add{flex:none;border:0;border-radius:999px;padding:8px 12px;font-weight:700;font-size:13px;background:var(--accent);color:var(--accent-ink);min-height:36px}
+.ev .add.done{background:var(--good-soft);color:var(--good)}
+.nfoot{display:flex;gap:6px;margin-top:8px;justify-content:flex-end}
+.nfoot .btn{min-height:34px;padding:6px 12px;font-size:13px}
+.empty{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:22px 18px;margin-top:16px;color:var(--ink-2)}
+.empty h2{font-size:20px;color:var(--ink);margin-bottom:4px}
+.err{background:var(--danger-soft);color:var(--danger);border-radius:10px;padding:9px 12px;font-size:13.5px;margin-top:8px}
+
+/* Edit sheet */
+.backdrop{position:fixed;inset:0;z-index:60;background:rgba(20,8,14,.5);display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);width:100%;max-width:560px;border-radius:22px 22px 0 0;padding:18px 18px calc(20px + env(safe-area-inset-bottom,0px));max-height:92vh;overflow:auto}
+.sheet h2{font-size:21px;font-weight:800}
+.sheet a{color:var(--accent);font-weight:700}
+.sheet ol{margin:10px 0 0;padding-left:20px;color:var(--ink-2);font-size:15px;display:flex;flex-direction:column;gap:6px}
+.lbl{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:700;margin:14px 0 6px}
+.inp,.sheet textarea,.sheet select{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:10px 12px;font-size:16px}
+.sheet textarea{min-height:110px;resize:vertical}
+.hint{font-size:13px;color:var(--ink-3);margin:8px 0 0}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sheetfoot{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.sheetfoot .btn{flex:1}
+
+.lb{position:fixed;inset:0;z-index:90;background:rgba(10,4,8,.92);display:flex;align-items:center;justify-content:center;padding:calc(16px + env(safe-area-inset-top,0px)) 12px calc(16px + env(safe-area-inset-bottom,0px))}
+.lb img{max-width:100%;max-height:88vh;border-radius:12px;object-fit:contain}
+.lb button{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:12px;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.15);color:#fff;font-size:18px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;font-weight:600;z-index:80;box-shadow:0 8px 30px rgba(0,0,0,.2);max-width:calc(100% - 32px)}
+.spinner{width:14px;height:14px;border-radius:50%;border:2px solid var(--surface-2);border-top-color:var(--accent);animation:spin .9s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spinner{animation-duration:3s}}
+.pad{height:48px}
+@media (max-width:380px){.row2{grid-template-columns:1fr}}
+</style>
+</head><body>
+
+<div class="top">
+  <div class="wrap">
+    <button class="logo" data-act="home" aria-label="remembrd home"><span class="mark" aria-hidden="true"></span><span class="word">remembr<b>d</b></span></button>
+    <span class="spacer"></span>
+    <button class="iconbtn" data-act="settings" aria-label="Settings"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </div>
+  <nav class="wrap topnav" id="topnav" aria-label="Sections"></nav>
+</div>
+<main id="main" class="wrap"></main>
+<div id="sheet" class="backdrop" hidden></div>
+<div id="lb" class="lb" hidden role="dialog" aria-modal="true" aria-label="Screenshot"></div>
+<div id="toast" class="toast" hidden role="status"></div>
+
+<script>
+/* ---------- constants ---------- */
+const DEFAULT_CATS=["Baseball","Church","Home","Work","School"];
+const CAT_COLORS={Baseball:"#D6453D",Church:"#7B5CC4",Home:"#1F9494",Work:"#2F6FD1",School:"#D99A1B"};
+const EXTRA_COLORS=["#E0702C","#5A9A3A","#C2478E","#3E8FB0","#8C6A3F","#6A7A92","#B0452F","#2E9B5F"];
+const TZ=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||"America/Chicago"}catch(e){return "America/Chicago"}})();
+
+/* ---------- state ---------- */
+const S={notes:[],ready:false,view:"notes",filter:"All",q:"",draft:"",shots:[],busy:{},edit:null,confirmDel:false,db:null};
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid=()=>(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2)).replace(/-/g,"");
+function toast(msg){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600)}
+const icon={
+  shot:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>',
+  cam:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+  search:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>'
+};
+function lsGet(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+
+/* ---------- categories ---------- */
+function getCats(){const c=lsGet("remembrd_cats",null);return Array.isArray(c)&&c.length?c:[...DEFAULT_CATS]}
+function setCats(c){lsSet("remembrd_cats",c)}
+function addCat(name){name=String(name||"").trim().replace(/\s+/g," ").slice(0,24);if(!name)return "Home";
+  const c=getCats(),hit=c.find(x=>x.toLowerCase()===name.toLowerCase());if(hit)return hit;
+  name=name.replace(/\b\w/g,m=>m.toUpperCase());c.push(name);setCats(c);return name}
+function catColor(name){if(CAT_COLORS[name])return CAT_COLORS[name];const c=getCats().filter(x=>!CAT_COLORS[x]),i=c.indexOf(name);return EXTRA_COLORS[(i<0?0:i)%EXTRA_COLORS.length]}
+
+/* ---------- dates ---------- */
+const pad=n=>String(n).padStart(2,"0");
+function nowContext(){
+  const d=new Date();
+  return `${d.toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}, ${d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})} (${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}), time zone ${TZ}`;
+}
+function evStart(ev){const [y,m,d]=String(ev.date).split("-").map(Number);if(!y)return null;const [h,mi]=ev.start?String(ev.start).split(":").map(Number):[0,0];return new Date(y,m-1,d,h||0,mi||0)}
+function fmtEvWhen(ev){
+  const s=evStart(ev);if(!s)return "";
+  const day=s.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
+  if(!ev.start)return day+" · All day";
+  const t=x=>{const [h,m]=String(x).split(":").map(Number);const dd=new Date(2000,0,1,h,m);return dd.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})};
+  return day+" · "+t(ev.start)+(ev.end?"–"+t(ev.end):"");
+}
+function gcalUrl(ev){
+  const s=evStart(ev);if(!s)return null;
+  let dates;
+  if(!ev.start){const e=new Date(s);e.setDate(e.getDate()+(ev.endDate?Math.max(1,Math.round((evStart({date:ev.endDate})-s)/864e5)+1):1));
+    dates=`${s.getFullYear()}${pad(s.getMonth()+1)}${pad(s.getDate())}/${e.getFullYear()}${pad(e.getMonth()+1)}${pad(e.getDate())}`}
+  else{let e;if(ev.end){const [h,m]=ev.end.split(":").map(Number);e=new Date(s);e.setHours(h,m);if(e<=s)e.setDate(e.getDate()+1)}else e=new Date(s.getTime()+36e5);
+    const f=x=>`${x.getFullYear()}${pad(x.getMonth()+1)}${pad(x.getDate())}T${pad(x.getHours())}${pad(x.getMinutes())}00`;dates=f(s)+"/"+f(e)}
+  const q=new URLSearchParams({action:"TEMPLATE",text:ev.title||"Event",dates,ctz:TZ});
+  if(ev.location)q.set("location",ev.location);if(ev.details)q.set("details",ev.details);
+  return "https://calendar.google.com/calendar/render?"+q.toString();
+}
+function dayLabel(iso){const d=new Date(iso),t=new Date();const k=x=>x.toDateString();const y=new Date(t);y.setDate(t.getDate()-1);
+  if(k(d)===k(t))return "Today";if(k(d)===k(y))return "Yesterday";
+  const o={weekday:"long",month:"short",day:"numeric"};if(d.getFullYear()!==t.getFullYear())o.year="numeric";return d.toLocaleDateString(undefined,o)}
+const fmtTime=iso=>new Date(iso).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
+
+/* ---------- storage (IndexedDB, on this phone) ---------- */
+function openIDB(){return new Promise((res,rej)=>{if(!window.indexedDB)return rej();const q=indexedDB.open("remembrd",1);q.onupgradeneeded=()=>{const d=q.result;d.createObjectStore("notes",{keyPath:"id"});d.createObjectStore("blobs")};q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
+function tx(store,mode,fn){return new Promise((res,rej)=>{const t=S.db.transaction(store,mode),st=t.objectStore(store);let out;const r=fn(st);if(r)r.onsuccess=()=>{out=r.result};t.oncomplete=()=>res(out);t.onerror=t.onabort=()=>rej(t.error)})}
+const putNote=n=>S.db?tx("notes","readwrite",st=>st.put(JSON.parse(JSON.stringify(n)))).catch(e=>{console.warn(e);toast("Couldn't save. Try again.")}):Promise.resolve();
+const delNote=id=>S.db?tx("notes","readwrite",st=>st.delete(id)):Promise.resolve();
+const putBlob=(id,b)=>tx("blobs","readwrite",st=>st.put(b,id));
+const getBlob=id=>tx("blobs","readonly",st=>st.get(id)).catch(()=>null);
+const delBlob=id=>tx("blobs","readwrite",st=>st.delete(id)).catch(()=>{});
+const urlCache={},loading={};let reT=null;
+const BLANK="data:image/gif;base64,R0lGODlhAQABAAAAACw=";
+function blobUrl(id){if(urlCache[id])return urlCache[id];if(!loading[id]&&S.db){loading[id]=1;getBlob(id).then(b=>{if(b){urlCache[id]=URL.createObjectURL(b);clearTimeout(reT);reT=setTimeout(()=>{if($("#sheet").hidden&&$("#lb").hidden){const y=scrollY;render();scrollTo(0,y)}},60)}})}return BLANK}
+
+/* ---------- images ---------- */
+function prepareImage(file){
+  return new Promise(resolve=>{
+    const src=URL.createObjectURL(file),im=new Image(),keep=()=>{URL.revokeObjectURL(src);resolve(file)};
+    im.onload=()=>{try{let w=im.naturalWidth,h=im.naturalHeight;if(!w||!h)return keep();const sc=Math.min(1,2000/Math.max(w,h));w=Math.round(w*sc);h=Math.round(h*sc);
+      const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");if(!x)return keep();x.fillStyle="#fff";x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);
+      c.toBlob(b=>{URL.revokeObjectURL(src);resolve(b&&b.size>500?b:file)},"image/jpeg",.88)}catch(e){keep()}};
+    im.onerror=keep;im.src=src;
+  });
+}
+
+/* ---------- Gemini ---------- */
+function getKey(){try{return localStorage.getItem("gemini_key")||localStorage.getItem("cleand_gemini_key")||""}catch(e){return ""}}
+function setKey(k){try{k?localStorage.setItem("gemini_key",k):(localStorage.removeItem("gemini_key"),localStorage.removeItem("cleand_gemini_key"))}catch(e){}}
+const MODELS=["gemini-3.5-flash","gemini-3.8-flash","gemini-flash-latest","gemini-2.5-flash"];
+const toB64=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=rej;r.readAsDataURL(b)});
+function parseJSONLoose(t){try{return JSON.parse(t)}catch(e){}const f=t.match(/```(?:json)?\s*([\s\S]*?)```/),body=f?f[1]:t,a=body.indexOf("{"),b=body.lastIndexOf("}");if(a>=0&&b>a){try{return JSON.parse(body.slice(a,b+1))}catch(e){}}throw {code:"invalid_json"}}
+async function geminiJSON(prompt,images){
+  const key=getKey();if(!key)throw {code:"bad_key"};
+  const parts=[{text:prompt}];
+  for(const b of (images||[]))parts.push({inline_data:{mime_type:b.type&&/^image\//.test(b.type)?b.type:"image/jpeg",data:await toB64(b)}});
+  const body=JSON.stringify({contents:[{role:"user",parts}],generationConfig:{responseMimeType:"application/json",temperature:0.2}});
+  let saved="";try{saved=localStorage.getItem("gemini_model")||localStorage.getItem("cleand_model")||""}catch(e){}
+  let last=null;
+  for(const m of [...new Set([saved,...MODELS].filter(Boolean))]){
+    let r;
+    try{r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body})}
+    catch(e){if(navigator.onLine===false)throw {code:"offline"};last={code:"upstream_error",message:"Network error ("+(e&&e.message||e)+")"};continue}
+    if(r.status===404)continue;
+    let j=null;try{j=await r.json()}catch(e){}
+    const msg=(j&&j.error&&j.error.message)||"";
+    if(r.status===400&&/not found|not supported|unknown model/i.test(msg))continue;
+    if(r.status===400&&/api key/i.test(msg)||r.status===401||r.status===403)throw {code:"bad_key"};
+    if(r.status===429)throw {code:"rate_limited"};
+    if(r.status>=500){last={code:"upstream_error",message:r.status+" "+msg};continue}
+    if(!r.ok)throw {code:"upstream_error",message:r.status+" "+msg};
+    try{localStorage.setItem("gemini_model",m)}catch(e){}
+    const c=j&&j.candidates&&j.candidates[0];
+    if(!c||(j.promptFeedback&&j.promptFeedback.blockReason)||c.finishReason==="SAFETY")throw {code:"refused"};
+    const text=((c.content&&c.content.parts)||[]).map(p=>p.text||"").join("");
+    if(!text.trim())throw {code:"invalid_json"};
+    return parseJSONLoose(text);
+  }
+  throw last||{code:"no_model"};
+}
+function errCopy(e){const c=e&&e.code;return({
+  bad_key:"Gemini key missing or not working. Add it in Settings.",
+  rate_limited:"Gemini's free limit is used up for now. Tap Sort again in a minute.",
+  offline:"You're offline. The note is saved. Tap Sort again when you're back online.",
+  refused:"Gemini couldn't read that one. The note is saved as is.",
+  invalid_json:"Gemini's answer came back scrambled. Tap Sort again."
+})[c]||("Couldn't reach Gemini. Tap Sort again."+(e&&e.message?" ("+String(e.message).slice(0,160)+")":""))}
+
+function buildPrompt(note,hasImages){
+  return `You are the sorting engine for remembrd, a personal quick-notes app. Read the note${hasImages?" and the attached screenshot(s)":""} and return structured info.
+
+RIGHT NOW: ${nowContext()}.
+
+CATEGORIES (use one of these when it fits): ${JSON.stringify(getCats())}
+If none of them fits well, create ONE new short category (1-2 words, Title Case, general enough to reuse, like "Doctor", "Kids", "Finance", "Travel"). Prefer existing categories. Baseball covers games, practices, tournaments, team snacks and fees. Church covers services, small groups, volunteering and church events.
+
+NOTE TEXT: ${note.text?JSON.stringify(note.text):"(none, screenshot only)"}
+
+RULES:
+- "title": 3-8 word summary a person would scan for.
+- "summary": ${hasImages?"the useful information from the screenshot in 1-4 short plain lines (who, what, when, where, anything to bring or pay). No commentary.":"empty string (the typed note is kept as is)."}
+- "events": every specific event, appointment or deadline with a date you can pin down. Resolve relative dates ("next Tuesday", "tomorrow", "the 14th") against RIGHT NOW. If the year is missing, use the next upcoming occurrence. Times in 24h "HH:MM", local time. Use null for start when there's no time (all-day). Include "endDate" only for multi-day events. Don't create events for vague things ("sometime soon") or dates in the past. A schedule screenshot can produce several events (max 25).
+- Event "title" should make sense on a calendar by itself, like "Baseball game vs Tigers" or "Church potluck".
+- "location" only if stated. "details": short useful extras (what to bring, cost, links), or empty string.
+
+Reply with ONLY JSON:
+{"category":"Baseball","newCategory":false,"title":"Saturday game vs Tigers","summary":"","events":[{"title":"Baseball game vs Tigers","date":"2026-10-04","start":"10:00","end":"12:00","endDate":null,"location":"Field 3, Memorial Park","details":"Snack duty"}]}`;
+}
+
+/* ---------- actions ---------- */
+async function saveNote(){
+  const text=S.draft.trim(),shots=S.shots.slice();
+  if(!text&&!shots.length){toast("Type a note or add a screenshot");return}
+  const n={id:uid(),createdAt:new Date().toISOString(),text,title:"",summary:"",category:"",images:[],events:[],status:"sorting"};
+  for(const s of shots){try{const id=uid();await putBlob(id,s.blob);urlCache[id]=s.url;n.images.push(id)}catch(e){console.warn(e)}}
+  S.notes.unshift(n);S.draft="";S.shots=[];
+  await putNote(n);render();
+  const ta=$("#cap");if(ta)ta.blur();
+  sortNote(n.id,shots.map(s=>s.blob));
+}
+async function sortNote(id,blobs){
+  const n=S.notes.find(x=>x.id===id);if(!n)return;
+  if(!getKey()){n.status="unsorted";n.err="Add your Gemini key in Settings so remembrd can sort notes and find dates.";await putNote(n);render();return}
+  n.status="sorting";n.err=null;render();
+  try{
+    if(!blobs||!blobs.length)blobs=(await Promise.all((n.images||[]).map(getBlob))).filter(Boolean);
+    const r=await geminiJSON(buildPrompt(n,blobs.length>0),blobs);
+    n.category=addCat(r.category||"Home");
+    n.title=String(r.title||"").slice(0,90);
+    n.summary=blobs.length?String(r.summary||"").slice(0,800):"";
+    n.events=(Array.isArray(r.events)?r.events:[]).filter(e=>e&&/^\d{4}-\d{2}-\d{2}$/.test(String(e.date))).slice(0,25).map(e=>({
+      id:uid(),title:String(e.title||n.title||"Event").slice(0,120),date:String(e.date),
+      start:/^\d{1,2}:\d{2}$/.test(String(e.start||""))?String(e.start).padStart(5,"0"):null,
+      end:/^\d{1,2}:\d{2}$/.test(String(e.end||""))?String(e.end).padStart(5,"0"):null,
+      endDate:/^\d{4}-\d{2}-\d{2}$/.test(String(e.endDate||""))?String(e.endDate):null,
+      location:String(e.location||"").slice(0,200),details:String(e.details||"").slice(0,500),added:false}));
+    n.status="sorted";
+    if(n.events.length)toast(n.events.length===1?"Found a date. Tap Add to put it on your calendar.":`Found ${n.events.length} dates`);
+  }catch(e){console.error(e);n.status="unsorted";n.err=errCopy(e);if(e&&e.code==="bad_key")openSettings()}
+  await putNote(n);render();
+}
+function addToCal(noteId,evId){
+  const n=S.notes.find(x=>x.id===noteId),ev=n&&n.events.find(x=>x.id===evId);if(!ev)return;
+  const url=gcalUrl(ev);if(!url){toast("That date couldn't be read");return}
+  window.open(url,"_blank","noopener");
+  ev.added=true;putNote(n);setTimeout(render,300);
+}
+
+/* ---------- edit sheet ---------- */
+function openEdit(id){
+  const n=S.notes.find(x=>x.id===id);if(!n)return;
+  S.edit=JSON.parse(JSON.stringify(n));S.confirmDel=false;renderSheet();$("#sheet").hidden=false;
+}
+function closeSheet(){$("#sheet").hidden=true;S.edit=null;S.sheetMode=null;render()}
+function renderSheet(){
+  if(S.sheetMode==="settings")return renderSettings();
+  const e=S.edit;if(!e)return;
+  const cats=getCats();
+  $("#sheet").innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Edit note">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2>Edit note</h2><button class="iconbtn" data-act="closesheet" aria-label="Close">✕</button></div>
+    <p class="hint" style="margin-top:2px">Saved ${esc(dayLabel(e.createdAt))} at ${esc(fmtTime(e.createdAt))}</p>
+    <span class="lbl">Category</span>
+    <div class="row2"><select id="ecat">${cats.map(c=>`<option ${c===e.category?"selected":""}>${esc(c)}</option>`).join("")}<option value="__new">+ New category…</option></select>
+    <input id="enewcat" class="inp" placeholder="New category name" hidden></div>
+    <span class="lbl">Title</span><input id="etitle" class="inp" value="${esc(e.title)}">
+    <span class="lbl">Note</span><textarea id="etext">${esc(e.text||e.summary)}</textarea>
+    ${e.events.length?`<span class="lbl">Dates found</span>${e.events.map(ev=>`<div class="ev" style="margin-top:6px"><div class="info"><b>${esc(ev.title)}</b><span>${esc(fmtEvWhen(ev))}</span></div><button class="btn ghost danger" data-act="evdel" data-id="${ev.id}" style="min-height:32px;padding:4px 10px">Remove</button></div>`).join("")}`:""}
+    <div class="sheetfoot"><button class="btn primary big" data-act="editsave">Save</button></div>
+    <div class="sheetfoot">
+      <button class="btn" data-act="resort">Re-sort with Gemini</button>
+      ${S.confirmDel?`<button class="btn danger solid" data-act="delnote">Delete for good</button>`:`<button class="btn danger" data-act="delask">Delete</button>`}
+    </div></div>`;
+}
+async function saveEdit(){
+  const e=S.edit,n=S.notes.find(x=>x.id===e.id);if(!n)return closeSheet();
+  let cat=$("#ecat").value;if(cat==="__new")cat=addCat($("#enewcat").value||"Other");
+  n.category=cat;n.title=$("#etitle").value.trim();
+  const t=$("#etext").value;if(n.text||!n.summary)n.text=t;else n.summary=t;
+  n.events=n.events.filter(x=>e.events.some(y=>y.id===x.id));
+  await putNote(n);closeSheet();toast("Saved");
+}
+
+/* ---------- settings ---------- */
+let sheetErr="",sheetBusy=false;
+function openSettings(){S.sheetMode="settings";sheetErr="";renderSettings();$("#sheet").hidden=false}
+function renderSettings(){
+  const k=getKey(),custom=getCats().filter(c=>!DEFAULT_CATS.includes(c));
+  $("#sheet").innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Settings">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2>Settings</h2><button class="iconbtn" data-act="closesheet" aria-label="Close">✕</button></div>
+  <span class="lbl">Gemini key</span>
+  <p class="hint" style="margin-top:0">remembrd uses Google Gemini to sort notes, find dates and read screenshots. It's the same free key as cleand.</p>
+  <ol><li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and sign in.</li><li>Copy your key (or tap <b>Create API key</b>).</li><li>Paste it below and tap <b>Save key</b>.</li></ol>
+  <input id="keyin" class="inp" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste key here" value="${esc(k)}" style="font-family:var(--mono);font-size:15px;margin-top:10px">
+  ${sheetErr?`<div class="err">${esc(sheetErr)}</div>`:""}
+  <button class="btn primary big" data-act="savekey" style="margin-top:10px" ${sheetBusy?"disabled":""}>${sheetBusy?"Checking…":"Save key"}</button>
+  ${custom.length?`<span class="lbl">Categories remembrd added</span><div style="display:flex;flex-wrap:wrap;gap:6px">${custom.map(c=>`<span class="chip" style="min-height:34px"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}${S.notes.some(n=>n.category===c)?"":`<button class="btn ghost" data-act="catdel" data-v="${esc(c)}" style="min-height:26px;padding:0 4px" aria-label="Remove ${esc(c)}">✕</button>`}</span>`).join("")}</div><p class="hint">A category can be removed once no notes use it.</p>`:""}
+  <p class="hint" style="margin-top:16px">Notes and screenshots are stored only on this phone. On Google's free tier, Google may use what you send to improve its products.</p></div>`;
+}
+async function saveKey(){
+  const k=($("#keyin").value||"").trim();
+  if(!k){sheetErr="Paste your key first.";return renderSettings()}
+  sheetBusy=true;sheetErr="";renderSettings();
+  try{const r=await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",{headers:{"x-goog-api-key":k}});
+    if(r.status===400||r.status===401||r.status===403){sheetErr="Google didn't accept that key. Copy it again and paste the whole thing.";return}
+    setKey(k);closeSheet();toast("Gemini is connected");
+    for(const n of S.notes.filter(x=>x.status==="unsorted"&&x.err&&/key/i.test(x.err)))sortNote(n.id);
+  }catch(e){sheetErr="Couldn't reach Google. Check your connection."}
+  finally{sheetBusy=false;if(S.sheetMode==="settings"&&!$("#sheet").hidden)renderSettings()}
+}
+
+/* ---------- render ---------- */
+function upcoming(){
+  const today=new Date();today.setHours(0,0,0,0);const out=[];
+  for(const n of S.notes)for(const ev of (n.events||[])){const s=evStart(ev);if(s&&s>=today)out.push({n,ev,s})}
+  return out.sort((a,b)=>a.s-b.s);
+}
+function render(){
+  const up=upcoming().length;
+  $("#topnav").innerHTML=`<button data-act="nav" data-v="notes" ${S.view==="notes"?'aria-current="page"':""}>Notes</button><button data-act="nav" data-v="upcoming" ${S.view==="upcoming"?'aria-current="page"':""}>Upcoming${up?`<span class="ct">${up}</span>`:""}</button>`;
+  const ae=document.activeElement,fid=ae&&(ae.id==="cap"||ae.id==="q")?ae.id:null,ss=fid?ae.selectionStart:0,se=fid?ae.selectionEnd:0;
+  $("#main").innerHTML=S.view==="upcoming"?upcomingHTML():notesHTML();
+  if(fid){const el=document.getElementById(fid);if(el){el.focus({preventScroll:true});try{el.setSelectionRange(ss,se)}catch(_){}}}
+}
+function captureHTML(){
+  return `<section class="capture">
+    ${S.shots.length?`<div class="pending">${S.shots.map((s,i)=>`<div class="th"><img src="${s.url}" alt=""><button class="x" data-act="shotrm" data-v="${i}" aria-label="Remove screenshot">✕</button></div>`).join("")}</div>`:""}
+    <textarea id="cap" placeholder="${S.shots.length?"Add a note about this screenshot (optional)":"What do you need to remember?"}" rows="3">${esc(S.draft)}</textarea>
+    <div class="caprow">
+      <label class="shot">${icon.shot}<span>Screenshot</span><input id="shotin" type="file" accept="image/*" multiple></label>
+      <label class="shot" aria-label="Take a photo">${icon.cam}<input id="camin" type="file" accept="image/*" capture="environment"></label>
+      <span class="spacer"></span>
+      <button class="btn primary" data-act="save" style="min-width:92px">Save</button>
+    </div>
+  </section>
+  ${getKey()?"":`<div class="keycard"><h2>One-time setup</h2><p class="hint" style="margin-top:2px">Add your free Gemini key so remembrd can sort notes, find dates and read screenshots. Notes still save without it.</p><button class="btn primary" data-act="settings" style="margin-top:10px;width:100%">Add Gemini key</button></div>`}`;
+}
+function noteHTML(n){
+  const c=n.category;
+  return `<article class="note">
+    <div class="nhead">${n.status==="sorting"?`<span class="sorting"><span class="spinner"></span>Sorting…</span>`:c?`<span class="cat"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}</span>`:`<span class="cat">Unsorted</span>`}
+      <span class="t">${esc(fmtTime(n.createdAt))}</span></div>
+    ${n.title?`<h3>${esc(n.title)}</h3>`:""}
+    ${n.text?`<div class="ntext">${esc(n.text)}</div>`:""}
+    ${n.summary?`<div class="ntext">${esc(n.summary)}</div>`:""}
+    ${n.images&&n.images.length?`<div class="nimg">${n.images.map(id=>`<button data-act="lb" data-v="${id}" aria-label="View screenshot"><img src="${blobUrl(id)}" alt=""></button>`).join("")}</div>`:""}
+    ${(n.events||[]).map(ev=>evHTML(n,ev)).join("")}
+    ${n.err?`<div class="err">${esc(n.err)}</div>`:""}
+    <div class="nfoot">${n.status==="unsorted"?`<button class="btn" data-act="resort" data-id="${n.id}">Sort</button>`:""}<button class="btn ghost" data-act="edit" data-id="${n.id}">Edit</button></div>
+  </article>`;
+}
+function evHTML(n,ev){
+  const s=evStart(ev);if(!s)return "";
+  const past=s<new Date(new Date().toDateString());
+  return `<div class="ev"><div class="cal"><div class="m">${s.toLocaleDateString(undefined,{month:"short"})}</div><div class="d">${s.getDate()}</div></div>
+    <div class="info"><b>${esc(ev.title)}</b><span>${esc(fmtEvWhen(ev))}${ev.location?" · "+esc(ev.location):""}</span></div>
+    ${past?"":`<button class="add ${ev.added?"done":""}" data-act="cal" data-id="${n.id}" data-v="${ev.id}">${ev.added?"Added ✓":"Add"}</button>`}</div>`;
+}
+function notesHTML(){
+  if(!S.ready)return captureHTML()+`<div class="empty">Loading…</div>`;
+  const counts={};S.notes.forEach(n=>{if(n.category)counts[n.category]=(counts[n.category]||0)+1});
+  const cats=getCats();
+  const q=S.q.trim().toLowerCase();
+  const list=S.notes.filter(n=>(S.filter==="All"||n.category===S.filter)&&(!q||[n.text,n.title,n.summary,n.category,...(n.events||[]).map(e=>e.title+" "+e.location)].join(" ").toLowerCase().includes(q)));
+  let html=captureHTML();
+  if(S.notes.length){
+    html+=`<label class="search">${icon.search}<input id="q" type="search" placeholder="Search notes" value="${esc(S.q)}" autocomplete="off"></label>
+    <div class="chips"><button class="chip" data-act="filter" data-v="All" aria-pressed="${S.filter==="All"}">All <span class="n">${S.notes.length}</span></button>
+    ${cats.map(c=>`<button class="chip" data-act="filter" data-v="${esc(c)}" aria-pressed="${S.filter===c}"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}${counts[c]?` <span class="n">${counts[c]}</span>`:""}</button>`).join("")}</div>`;
+  }
+  if(!S.notes.length)html+=`<div class="empty"><h2>Nothing yet</h2>Type a quick note, or add a screenshot of a flyer, text or schedule. remembrd timestamps it, sorts it into a category, and pulls out any dates for your calendar.</div>`;
+  else if(!list.length)html+=`<div class="empty">No notes match.</div>`;
+  else{let last="";for(const n of list){const d=dayLabel(n.createdAt);if(d!==last){html+=`<div class="day">${esc(d)}</div>`;last=d}html+=noteHTML(n)}}
+  return html+`<div class="pad"></div>`;
+}
+function upcomingHTML(){
+  const u=upcoming();
+  let html=`<div style="margin-top:18px"><h1 style="font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em">Upcoming</h1><p class="hint" style="margin-top:2px">Every date remembrd found, soonest first.</p></div>`;
+  if(!u.length)return html+`<div class="empty">No upcoming dates yet. Notes with a date or time will show up here.</div>`;
+  let last="";
+  for(const {n,ev,s} of u){const d=dayLabel(s.toISOString()).replace("Yesterday","");const lab=s.toDateString()===new Date().toDateString()?"Today":s.toLocaleDateString(undefined,{weekday:"long",month:"short",day:"numeric"});
+    if(lab!==last){html+=`<div class="day">${esc(lab)}</div>`;last=lab}
+    html+=`<article class="note"><div class="nhead"><span class="cat"><span class="dot" style="background:${catColor(n.category)}"></span>${esc(n.category||"Unsorted")}</span></div>${evHTML(n,ev)}${ev.details?`<div class="ntext" style="margin-top:6px;font-size:14px">${esc(ev.details)}</div>`:""}</article>`}
+  return html+`<div class="pad"></div>`;
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-act]");if(!b)return;
+  const a=b.dataset.act,v=b.dataset.v;
+  if(a==="save")saveNote();
+  else if(a==="nav"){S.view=v;render();scrollTo(0,0)}
+  else if(a==="home"){S.view="notes";S.filter="All";S.q="";render();scrollTo(0,0)}
+  else if(a==="filter"){S.filter=v;render()}
+  else if(a==="shotrm"){const s=S.shots.splice(+v,1)[0];if(s)URL.revokeObjectURL(s.url);render()}
+  else if(a==="cal")addToCal(b.dataset.id,v);
+  else if(a==="edit")openEdit(b.dataset.id);
+  else if(a==="resort"){const id=b.dataset.id||(S.edit&&S.edit.id);if(!b.dataset.id){$("#sheet").hidden=true;S.edit=null}sortNote(id)}
+  else if(a==="closesheet")closeSheet();
+  else if(a==="editsave")saveEdit();
+  else if(a==="evdel"){S.edit.events=S.edit.events.filter(x=>x.id!==b.dataset.id);renderSheet()}
+  else if(a==="delask"){S.confirmDel=true;renderSheet()}
+  else if(a==="delnote"){const id=S.edit.id,n=S.notes.find(x=>x.id===id);S.notes=S.notes.filter(x=>x.id!==id);delNote(id);(n&&n.images||[]).forEach(delBlob);closeSheet();toast("Deleted")}
+  else if(a==="settings")openSettings();
+  else if(a==="savekey")saveKey();
+  else if(a==="catdel"){setCats(getCats().filter(c=>c!==v));if(S.filter===v)S.filter="All";renderSettings()}
+  else if(a==="lb"){const lb=$("#lb");lb.innerHTML=`<button data-act="lbclose" aria-label="Close">✕</button><img src="${blobUrl(v)}" alt="">`;lb.hidden=false}
+  else if(a==="lbclose")$("#lb").hidden=true;
+});
+document.addEventListener("input",e=>{
+  const t=e.target;
+  if(t.id==="cap")S.draft=t.value;
+  else if(t.id==="q"){S.q=t.value;render()}
+});
+document.addEventListener("change",async e=>{
+  const t=e.target;
+  if(t.id==="shotin"||t.id==="camin"){const files=[...(t.files||[])].slice(0,6);t.value="";
+    for(const f of files){const blob=await prepareImage(f);S.shots.push({blob,url:URL.createObjectURL(blob)})}render();const c=$("#cap");c&&c.focus()}
+  else if(t.id==="ecat"){$("#enewcat").hidden=t.value!=="__new";if(t.value==="__new")$("#enewcat").focus()}
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"){$("#lb").hidden=true;if(!$("#sheet").hidden)closeSheet()}
+  if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)&&e.target.id==="cap")saveNote();
+});
+$("#sheet").addEventListener("click",e=>{if(e.target.id==="sheet")closeSheet()});
+$("#lb").addEventListener("click",e=>{if(e.target.id==="lb")$("#lb").hidden=true});
+
+/* ---------- boot ---------- */
+render();
+(async function boot(){
+  try{S.db=await openIDB();if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+    const all=await tx("notes","readonly",st=>st.getAll());
+    S.notes=(all||[]).sort((a,b)=>a.createdAt<b.createdAt?1:-1);
+    // anything left mid-sort when the app closed gets retried
+    for(const n of S.notes)if(n.status==="sorting"){n.status="unsorted";n.err=null}
+  }catch(e){console.warn("no storage",e);toast("Notes can't be saved in this browser (private browsing?)")}
+  S.ready=true;render();
+  for(const n of S.notes.filter(x=>x.status==="unsorted"&&!x.err))sortNote(n.id);
+})();
+</script>
+</body></html>
