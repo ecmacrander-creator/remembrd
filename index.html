@@ -132,6 +132,7 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 .sel.on .selc{background:var(--accent);border-color:var(--accent)}
 .selbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));width:min(560px,calc(100% - 24px));display:flex;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:8px;box-shadow:0 10px 30px rgba(0,0,0,.18);z-index:60}
 .selbar .primary{margin-left:auto;min-width:96px}
+.pcancel{margin-top:8px;min-height:34px;font-size:13px;padding:0 12px}
 .x{flex:none;width:30px;height:30px;margin-right:-4px;border:0;border-radius:50%;background:transparent;color:var(--muted,#8a7f86);font-size:15px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .x.sh{margin-right:-8px;display:grid;place-items:center}
 .x:active{background:rgba(0,0,0,.08)}
@@ -368,7 +369,20 @@ async function dismissItem(id,evId){
   n.dismissed=(n.dismissed||[]).concat(title.toLowerCase()).slice(-30);
   await putNote(n);render();toast(evId==null?"To-do removed":"Date removed",true);
 }
+// stop a sort in progress and delete that note (Undo brings it back and re-sorts)
+let pendingBlobDel=null;
+function cancelNote(id){
+  const n=S.notes.find(x=>x.id===id);if(!n)return;
+  if(ABORT[id])ABORT[id].abort();
+  const idx=S.notes.indexOf(n);S.notes.splice(idx,1);delNote(id);
+  lastUndo={restore:n,idx};
+  clearTimeout(pendingBlobDel);const imgs=n.images||[];
+  pendingBlobDel=setTimeout(()=>{if(!S.notes.includes(n))imgs.forEach(delBlob)},8000);
+  render();toast("Stopped and deleted",true);
+}
 async function undoTask(){
+  if(lastUndo&&lastUndo.restore){const {restore:n,idx}=lastUndo;lastUndo=null;clearTimeout(pendingBlobDel);
+    S.notes.splice(Math.min(idx,S.notes.length),0,n);n.status="unsorted";n.err=null;await putNote(n);$("#toast").hidden=true;render();sortNote(n.id);return}
   if(!lastUndo)return;const n=S.notes.find(x=>x.id===lastUndo.id);if(!n)return;
   n.task=lastUndo.task;if(lastUndo.events)n.events=lastUndo.events;if(lastUndo.dismissed)n.dismissed=lastUndo.dismissed;lastUndo=null;await putNote(n);$("#toast").hidden=true;render();
 }
@@ -405,7 +419,8 @@ function getKey(){try{return localStorage.getItem("gemini_key")||localStorage.ge
 function setKey(k){try{k?localStorage.setItem("gemini_key",k):(localStorage.removeItem("gemini_key"),localStorage.removeItem("cleand_gemini_key"))}catch(e){}}
 const MODELS=["gemini-3.5-flash","gemini-3.8-flash","gemini-flash-latest","gemini-2.5-flash","gemini-3.5-flash-lite","gemini-3.1-flash-lite","gemini-2.5-flash-lite"];
 const toB64=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=rej;r.readAsDataURL(b)});
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const sleep=(ms,sig)=>new Promise((r,j)=>{const t=setTimeout(r,ms);sig&&sig.addEventListener("abort",()=>{clearTimeout(t);j({code:"cancelled"})})});
+const ABORT={};
 // smaller copy just for Gemini: faster upload, less likely to hit overload
 function shrinkForAI(blob,max=1024,q=.75){
   return new Promise(resolve=>{
@@ -417,7 +432,8 @@ function shrinkForAI(blob,max=1024,q=.75){
   });
 }
 function parseJSONLoose(t){try{return JSON.parse(t)}catch(e){}const f=t.match(/```(?:json)?\s*([\s\S]*?)```/),body=f?f[1]:t,a=body.indexOf("{"),b=body.lastIndexOf("}");if(a>=0&&b>a){try{return JSON.parse(body.slice(a,b+1))}catch(e){}}throw {code:"invalid_json"}}
-async function geminiJSON(prompt,images,onStage){
+async function geminiJSON(prompt,images,onStage,signal){
+  const chk=()=>{if(signal&&signal.aborted)throw {code:"cancelled"}};
   const stage=t=>{try{onStage&&onStage(t)}catch(e){}};
   if(images&&images.length)stage(images.length>1?`Shrinking ${images.length} screenshots`:"Shrinking screenshot");
   const key=getKey();if(!key)throw {code:"bad_key"};
@@ -432,16 +448,16 @@ async function geminiJSON(prompt,images,onStage){
   let last=null;
   // up to 3 rounds through the models; busy (503/500) or rate-limited (429) models get another try after a pause
   for(let round=0;round<3;round++){
-    if(round){stage("Google's servers are swamped. Waiting a few seconds to retry");await sleep(round===1?3000:8000)}
+    if(round){stage("Google's servers are swamped. Waiting a few seconds to retry");await sleep(round===1?3000:8000,signal)}
     let tried=0;
     for(const m of list){
       if(dead.has(m))continue;tried++;
       stage(tried>1||round?`Gemini is busy. Trying backup ${tried} of ${list.length-dead.size}`:(images&&images.length?"Gemini is reading your screenshot":"Gemini is reading your note"));
       let r;
-      try{r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:bodyFor(m)})}
-      catch(e){if(navigator.onLine===false)throw {code:"offline"};last={code:"upstream_error",message:"Network error ("+(e&&e.message||e)+")"};continue}
+      try{r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:bodyFor(m),signal})}
+      catch(e){chk();if(navigator.onLine===false)throw {code:"offline"};last={code:"upstream_error",message:"Network error ("+(e&&e.message||e)+")"};continue}
       if(r.status===404){dead.add(m);continue}
-      let j=null;try{j=await r.json()}catch(e){}
+      let j=null;try{j=await r.json()}catch(e){}chk();
       const msg=(j&&j.error&&j.error.message)||"";
       if(r.status===400&&/think/i.test(msg)&&!noThink.has(m)){noThink.add(m);list.splice(list.indexOf(m)+1,0,m);continue}
       if(r.status===400&&/not found|not supported|unknown model/i.test(msg)){dead.add(m);continue}
@@ -505,7 +521,7 @@ function progVals(id){const p=PROG[id];if(!p)return null;const sec=Math.floor((D
   const hint=sec>=p.exp*2.5?" · taking longer than usual, still working":"";
   return {stage:p.stage+"…",time:(sec>=60?Math.floor(sec/60)+":"+String(sec%60).padStart(2,"0"):sec+"s")+hint,pct}}
 function progHTML(id){const v=progVals(id)||{stage:"Getting ready…",time:"0s",pct:0};
-  return `<div class="prog" data-prog="${id}"><div class="pbar"><i style="width:${v.pct}%"></i></div><div class="prow"><span class="pstage">${esc(v.stage)}</span><span class="ptime">${esc(v.time)}</span></div></div>`}
+  return `<div class="prog" data-prog="${id}"><div class="pbar"><i style="width:${v.pct}%"></i></div><div class="prow"><span class="pstage">${esc(v.stage)}</span><span class="ptime">${esc(v.time)}</span></div><button class="btn pcancel" data-act="cancelsort" data-id="${id}">Cancel &amp; delete</button></div>`}
 function tickProg(){document.querySelectorAll("[data-prog]").forEach(el=>{const v=progVals(el.dataset.prog);if(!v)return;
   el.querySelector(".pbar i").style.width=v.pct+"%";const st=el.querySelector(".pstage");if(st.textContent!==v.stage)st.textContent=v.stage;el.querySelector(".ptime").textContent=v.time})}
 
@@ -526,7 +542,8 @@ async function sortNote(id,blobs){
   n.status="sorting";n.err=null;startProg(id,(n.images||[]).length?25:8);render();
   try{
     if(!blobs||!blobs.length)blobs=(await Promise.all((n.images||[]).map(getBlob))).filter(Boolean);
-    const r=await geminiJSON(buildPrompt(n,blobs.length>0),blobs,t=>setProg(id,t));
+    const ctl=ABORT[id]=new AbortController();
+    const r=await geminiJSON(buildPrompt(n,blobs.length>0),blobs,t=>setProg(id,t),ctl.signal);
     n.category=addCat(r.category||"Home");
     n.title=String(r.title||"").slice(0,90);
     n.summary=blobs.length?String(r.summary||"").slice(0,800):"";
@@ -544,9 +561,10 @@ async function sortNote(id,blobs){
     n.status="sorted";
     if(nt)toast(nt.repeat?`To-do saved. ${repeatLabel(nt)}.`:"To-do saved. It'll stay at the top until you check it off.");
     else if(n.events.length)toast(n.events.length===1?"Found a date. Tap Add to put it on your calendar.":`Found ${n.events.length} dates`);
-  }catch(e){console.error(e);n.status="unsorted";n.err=errCopy(e);n.retry=!!(e&&RETRYABLE.has(e.code));if(n.retry)scheduleRetry();if(e&&e.code==="bad_key")openSettings()}
+  }catch(e){if(e&&e.code==="cancelled"||!S.notes.includes(n)){delete ABORT[id];stopProg(id);return}console.error(e);n.status="unsorted";n.err=errCopy(e);n.retry=!!(e&&RETRYABLE.has(e.code));if(n.retry)scheduleRetry();if(e&&e.code==="bad_key")openSettings()}
   if(n.status==="sorted")n.retry=false;
-  stopProg(id);
+  delete ABORT[id];stopProg(id);
+  if(!S.notes.includes(n))return; // deleted while sorting
   await putNote(n);render();
 }
 function addToCal(noteId,evId){
@@ -750,6 +768,7 @@ document.addEventListener("click",e=>{
   else if(a==="cal")addToCal(b.dataset.id,v);
   else if(a==="tdone")completeTask(b.dataset.id);
   else if(a==="undo")undoTask();
+  else if(a==="cancelsort")cancelNote(b.dataset.id);
   else if(a==="tshare")shareTask(b.dataset.id);
   else if(a==="twho"){const n=S.notes.find(x=>x.id===b.dataset.id);if(n&&n.task){n.task.who=n.task.who==="partner"?"me":"partner";n.task.whoSet=true;putNote(n);render()}}
   else if(a==="whof"){S.who=v;render()}
@@ -769,7 +788,7 @@ document.addEventListener("click",e=>{
   else if(a==="editsave")saveEdit();
   else if(a==="evdel"){S.edit.events=S.edit.events.filter(x=>x.id!==b.dataset.id);renderSheet()}
   else if(a==="delask"){S.confirmDel=true;renderSheet()}
-  else if(a==="delnote"){const id=S.edit.id,n=S.notes.find(x=>x.id===id);S.notes=S.notes.filter(x=>x.id!==id);delNote(id);(n&&n.images||[]).forEach(delBlob);closeSheet();toast("Deleted")}
+  else if(a==="delnote"){const id=S.edit.id,n=S.notes.find(x=>x.id===id);if(ABORT[id])ABORT[id].abort();S.notes=S.notes.filter(x=>x.id!==id);delNote(id);(n&&n.images||[]).forEach(delBlob);closeSheet();toast("Deleted")}
   else if(a==="settings")openSettings();
   else if(a==="savekey")saveKey();
   else if(a==="catdel"){setCats(getCats().filter(c=>c!==v));if(S.filter===v)S.filter="All";renderSettings()}
