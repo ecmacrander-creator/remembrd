@@ -124,6 +124,7 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 .ptime{flex:none;font-variant-numeric:tabular-nums;text-align:right}
 @media (prefers-reduced-motion:reduce){.pbar i::after{animation:none}}
 .x{flex:none;width:30px;height:30px;margin-right:-4px;border:0;border-radius:50%;background:transparent;color:var(--muted,#8a7f86);font-size:15px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.x.sh{margin-right:-8px;display:grid;place-items:center}
 .x:active{background:rgba(0,0,0,.08)}
 .ev{display:flex;align-items:center;gap:10px;margin-top:10px;background:var(--accent-soft);border-radius:12px;padding:10px 12px}
 .ev .cal{flex:none;width:42px;text-align:center;background:var(--surface);border-radius:9px;padding:3px 0 4px;line-height:1.1}
@@ -308,6 +309,14 @@ async function completeTask(id){
     msg="Done. Next: "+parseYmd(t.due).toLocaleDateString(undefined,{month:"short",day:"numeric"})}
   else{t.doneAt=new Date().toISOString();msg="Done"}
   await putNote(n);render();toast(msg,true);
+}
+// send a to-do to someone (Messages, etc.) via the iPhone share sheet
+async function shareTask(id){
+  const n=S.notes.find(x=>x.id===id);if(!n||!n.task)return;const t=n.task;
+  const when=parseYmd(t.due).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
+  const text=`Reminder: ${t.title}\nDue ${when}${t.repeat?" ("+repeatLabel(t).toLowerCase()+")":""}`;
+  if(navigator.share){try{await navigator.share({text})}catch(e){}return}
+  try{await navigator.clipboard.writeText(text);toast("Copied. Paste it into a text.")}catch(e){location.href="sms:&body="+encodeURIComponent(text)}
 }
 // remove a to-do (evId null) or one date from a note; remembered so re-sorting won't bring it back
 async function dismissItem(id,evId){
@@ -626,6 +635,7 @@ function taskHTML(n){
     <button class="tick" data-act="${st==="done"?"reopen":"tdone"}" data-id="${n.id}" aria-label="${st==="done"?"Mark not done":"Mark done"}">${st==="done"?"✓":""}</button>
     <div class="info"><b>${esc(t.title)}</b><span>${esc([dueLabel(t),repeatLabel(t)].filter(Boolean).join(" · "))}</span></div>
     ${st==="done"?"":`<button class="add ${t.added?"done":""}" data-act="tcal" data-id="${n.id}">${t.added?"On cal ✓":"Add"}</button>`}
+    ${st==="done"?"":`<button class="x sh" data-act="tshare" data-id="${n.id}" aria-label="Send this to-do to someone"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button>`}
     <button class="x" data-act="tdismiss" data-id="${n.id}" aria-label="Remove this to-do">✕</button></div>`;
 }
 function evHTML(n,ev){
@@ -689,6 +699,7 @@ document.addEventListener("click",e=>{
   else if(a==="cal")addToCal(b.dataset.id,v);
   else if(a==="tdone")completeTask(b.dataset.id);
   else if(a==="undo")undoTask();
+  else if(a==="tshare")shareTask(b.dataset.id);
   else if(a==="tdismiss")dismissItem(b.dataset.id,null);
   else if(a==="evdismiss")dismissItem(b.dataset.id,v);
   else if(a==="reopen"){const n=S.notes.find(x=>x.id===b.dataset.id);if(n&&n.task){n.task.doneAt=null;putNote(n);render()}}
