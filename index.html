@@ -115,6 +115,14 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 .nimg button{all:unset;cursor:zoom-in;width:72px;height:72px;border-radius:10px;overflow:hidden;background:var(--surface-2)}
 .nimg img{width:100%;height:100%;object-fit:cover;display:block}
 .sorting{display:inline-flex;align-items:center;gap:6px;color:var(--ink-3);font-size:12.5px;font-weight:600}
+.prog{margin-top:10px}
+.pbar{position:relative;height:6px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.pbar i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:var(--accent);transition:width .5s ease;overflow:hidden}
+.pbar i::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);animation:shimmer 1.4s linear infinite}
+@keyframes shimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.prow{display:flex;justify-content:space-between;gap:10px;margin-top:6px;font-size:13px;color:var(--ink-3);font-weight:600}
+.ptime{flex:none;font-variant-numeric:tabular-nums;text-align:right}
+@media (prefers-reduced-motion:reduce){.pbar i::after{animation:none}}
 .x{flex:none;width:30px;height:30px;margin-right:-4px;border:0;border-radius:50%;background:transparent;color:var(--muted,#8a7f86);font-size:15px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .x:active{background:rgba(0,0,0,.08)}
 .ev{display:flex;align-items:center;gap:10px;margin-top:10px;background:var(--accent-soft);border-radius:12px;padding:10px 12px}
@@ -360,7 +368,9 @@ function shrinkForAI(blob,max=1024,q=.75){
   });
 }
 function parseJSONLoose(t){try{return JSON.parse(t)}catch(e){}const f=t.match(/```(?:json)?\s*([\s\S]*?)```/),body=f?f[1]:t,a=body.indexOf("{"),b=body.lastIndexOf("}");if(a>=0&&b>a){try{return JSON.parse(body.slice(a,b+1))}catch(e){}}throw {code:"invalid_json"}}
-async function geminiJSON(prompt,images){
+async function geminiJSON(prompt,images,onStage){
+  const stage=t=>{try{onStage&&onStage(t)}catch(e){}};
+  if(images&&images.length)stage(images.length>1?`Shrinking ${images.length} screenshots`:"Shrinking screenshot");
   const key=getKey();if(!key)throw {code:"bad_key"};
   const parts=[{text:prompt}];
   for(const b0 of (images||[])){const b=await shrinkForAI(b0);parts.push({inline_data:{mime_type:b.type&&/^image\//.test(b.type)?b.type:"image/jpeg",data:await toB64(b)}})}
@@ -373,10 +383,11 @@ async function geminiJSON(prompt,images){
   let last=null;
   // up to 3 rounds through the models; busy (503/500) or rate-limited (429) models get another try after a pause
   for(let round=0;round<3;round++){
-    if(round)await sleep(round===1?3000:8000);
+    if(round){stage("Google's servers are swamped. Waiting a few seconds to retry");await sleep(round===1?3000:8000)}
     let tried=0;
     for(const m of list){
       if(dead.has(m))continue;tried++;
+      stage(tried>1||round?`Gemini is busy. Trying backup ${tried} of ${list.length-dead.size}`:(images&&images.length?"Gemini is reading your screenshot":"Gemini is reading your note"));
       let r;
       try{r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:bodyFor(m)})}
       catch(e){if(navigator.onLine===false)throw {code:"offline"};last={code:"upstream_error",message:"Network error ("+(e&&e.message||e)+")"};continue}
@@ -433,6 +444,21 @@ Reply with ONLY JSON:
 Example to-do reply: {"category":"Home","newCategory":false,"title":"Dogs' heartworm meds","summary":"","events":[],"task":{"title":"Give dogs heartworm meds","due":"2026-10-15","repeat":"monthly"}}`;
 }
 
+/* ---------- sorting progress ---------- */
+const PROG={};let progT=null;
+function startProg(id,exp){PROG[id]={stage:"Getting ready",start:Date.now(),exp};if(!progT)progT=setInterval(tickProg,500)}
+function setProg(id,t){if(PROG[id]){PROG[id].stage=t;tickProg()}}
+function stopProg(id){delete PROG[id];if(!Object.keys(PROG).length){clearInterval(progT);progT=null}}
+function progVals(id){const p=PROG[id];if(!p)return null;const sec=Math.floor((Date.now()-p.start)/1000);
+  // bar eases toward 95% based on typical time; never claims done until it is
+  const pct=Math.round(95*(1-Math.exp(-sec/p.exp)));
+  const hint=sec>=p.exp*2.5?" · taking longer than usual, still working":"";
+  return {stage:p.stage+"…",time:(sec>=60?Math.floor(sec/60)+":"+String(sec%60).padStart(2,"0"):sec+"s")+hint,pct}}
+function progHTML(id){const v=progVals(id)||{stage:"Getting ready…",time:"0s",pct:0};
+  return `<div class="prog" data-prog="${id}"><div class="pbar"><i style="width:${v.pct}%"></i></div><div class="prow"><span class="pstage">${esc(v.stage)}</span><span class="ptime">${esc(v.time)}</span></div></div>`}
+function tickProg(){document.querySelectorAll("[data-prog]").forEach(el=>{const v=progVals(el.dataset.prog);if(!v)return;
+  el.querySelector(".pbar i").style.width=v.pct+"%";const st=el.querySelector(".pstage");if(st.textContent!==v.stage)st.textContent=v.stage;el.querySelector(".ptime").textContent=v.time})}
+
 /* ---------- actions ---------- */
 async function saveNote(){
   const text=S.draft.trim(),shots=S.shots.slice();
@@ -447,10 +473,10 @@ async function saveNote(){
 async function sortNote(id,blobs){
   const n=S.notes.find(x=>x.id===id);if(!n)return;
   if(!getKey()){n.status="unsorted";n.err="Add your Gemini key in Settings so remembrd can sort notes and find dates.";await putNote(n);render();return}
-  n.status="sorting";n.err=null;render();
+  n.status="sorting";n.err=null;startProg(id,(n.images||[]).length?25:8);render();
   try{
     if(!blobs||!blobs.length)blobs=(await Promise.all((n.images||[]).map(getBlob))).filter(Boolean);
-    const r=await geminiJSON(buildPrompt(n,blobs.length>0),blobs);
+    const r=await geminiJSON(buildPrompt(n,blobs.length>0),blobs,t=>setProg(id,t));
     n.category=addCat(r.category||"Home");
     n.title=String(r.title||"").slice(0,90);
     n.summary=blobs.length?String(r.summary||"").slice(0,800):"";
@@ -470,6 +496,7 @@ async function sortNote(id,blobs){
     else if(n.events.length)toast(n.events.length===1?"Found a date. Tap Add to put it on your calendar.":`Found ${n.events.length} dates`);
   }catch(e){console.error(e);n.status="unsorted";n.err=errCopy(e);n.retry=!!(e&&RETRYABLE.has(e.code));if(n.retry)scheduleRetry();if(e&&e.code==="bad_key")openSettings()}
   if(n.status==="sorted")n.retry=false;
+  stopProg(id);
   await putNote(n);render();
 }
 function addToCal(noteId,evId){
@@ -580,9 +607,10 @@ function captureHTML(){
 function noteHTML(n){
   const c=n.category;
   return `<article class="note">
-    <div class="nhead">${n.status==="sorting"?`<span class="sorting"><span class="spinner"></span>Sorting…</span>`:c?`<span class="cat"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}</span>`:`<span class="cat">Unsorted</span>`}
+    <div class="nhead">${n.status==="sorting"?`<span class="sorting"><span class="spinner"></span>Sorting</span>`:c?`<span class="cat"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}</span>`:`<span class="cat">Unsorted</span>`}
       <span class="t">${esc(fmtTime(n.createdAt))}</span></div>
     ${n.title?`<h3>${esc(n.title)}</h3>`:""}
+    ${n.status==="sorting"?progHTML(n.id):""}
     ${n.text?`<div class="ntext">${esc(n.text)}</div>`:""}
     ${n.summary?`<div class="ntext">${esc(n.summary)}</div>`:""}
     ${n.images&&n.images.length?`<div class="nimg">${n.images.map(id=>`<button data-act="lb" data-v="${id}" aria-label="View screenshot"><img src="${blobUrl(id)}" alt=""></button>`).join("")}</div>`:""}
