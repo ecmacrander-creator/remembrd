@@ -334,44 +334,65 @@ function prepareImage(file){
 /* ---------- Gemini ---------- */
 function getKey(){try{return localStorage.getItem("gemini_key")||localStorage.getItem("cleand_gemini_key")||""}catch(e){return ""}}
 function setKey(k){try{k?localStorage.setItem("gemini_key",k):(localStorage.removeItem("gemini_key"),localStorage.removeItem("cleand_gemini_key"))}catch(e){}}
-const MODELS=["gemini-3.5-flash","gemini-3.8-flash","gemini-flash-latest","gemini-2.5-flash"];
+const MODELS=["gemini-3.5-flash","gemini-3.8-flash","gemini-flash-latest","gemini-2.5-flash","gemini-3.5-flash-lite","gemini-3.1-flash-lite","gemini-2.5-flash-lite"];
 const toB64=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=rej;r.readAsDataURL(b)});
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+// smaller copy just for Gemini: faster upload, less likely to hit overload
+function shrinkForAI(blob,max=1280,q=.8){
+  return new Promise(resolve=>{
+    const src=URL.createObjectURL(blob),im=new Image(),keep=()=>{URL.revokeObjectURL(src);resolve(blob)};
+    im.onload=()=>{try{let w=im.naturalWidth,h=im.naturalHeight;if(!w||!h||Math.max(w,h)<=max)return keep();const sc=max/Math.max(w,h);w=Math.round(w*sc);h=Math.round(h*sc);
+      const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");if(!x)return keep();x.fillStyle="#fff";x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);
+      c.toBlob(b=>{URL.revokeObjectURL(src);resolve(b&&b.size>500?b:blob)},"image/jpeg",q)}catch(e){keep()}};
+    im.onerror=keep;im.src=src;
+  });
+}
 function parseJSONLoose(t){try{return JSON.parse(t)}catch(e){}const f=t.match(/```(?:json)?\s*([\s\S]*?)```/),body=f?f[1]:t,a=body.indexOf("{"),b=body.lastIndexOf("}");if(a>=0&&b>a){try{return JSON.parse(body.slice(a,b+1))}catch(e){}}throw {code:"invalid_json"}}
 async function geminiJSON(prompt,images){
   const key=getKey();if(!key)throw {code:"bad_key"};
   const parts=[{text:prompt}];
-  for(const b of (images||[]))parts.push({inline_data:{mime_type:b.type&&/^image\//.test(b.type)?b.type:"image/jpeg",data:await toB64(b)}});
+  for(const b0 of (images||[])){const b=await shrinkForAI(b0);parts.push({inline_data:{mime_type:b.type&&/^image\//.test(b.type)?b.type:"image/jpeg",data:await toB64(b)}})}
   const body=JSON.stringify({contents:[{role:"user",parts}],generationConfig:{responseMimeType:"application/json",temperature:0.2}});
   let saved="";try{saved=localStorage.getItem("gemini_model")||localStorage.getItem("cleand_model")||""}catch(e){}
+  const list=[...new Set([saved,...MODELS].filter(Boolean))],dead=new Set();
   let last=null;
-  for(const m of [...new Set([saved,...MODELS].filter(Boolean))]){
-    let r;
-    try{r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body})}
-    catch(e){if(navigator.onLine===false)throw {code:"offline"};last={code:"upstream_error",message:"Network error ("+(e&&e.message||e)+")"};continue}
-    if(r.status===404)continue;
-    let j=null;try{j=await r.json()}catch(e){}
-    const msg=(j&&j.error&&j.error.message)||"";
-    if(r.status===400&&/not found|not supported|unknown model/i.test(msg))continue;
-    if(r.status===400&&/api key/i.test(msg)||r.status===401||r.status===403)throw {code:"bad_key"};
-    if(r.status===429)throw {code:"rate_limited"};
-    if(r.status>=500){last={code:"upstream_error",message:r.status+" "+msg};continue}
-    if(!r.ok)throw {code:"upstream_error",message:r.status+" "+msg};
-    try{localStorage.setItem("gemini_model",m)}catch(e){}
-    const c=j&&j.candidates&&j.candidates[0];
-    if(!c||(j.promptFeedback&&j.promptFeedback.blockReason)||c.finishReason==="SAFETY")throw {code:"refused"};
-    const text=((c.content&&c.content.parts)||[]).map(p=>p.text||"").join("");
-    if(!text.trim())throw {code:"invalid_json"};
-    return parseJSONLoose(text);
+  // up to 3 rounds through the models; busy (503/500) or rate-limited (429) models get another try after a pause
+  for(let round=0;round<3;round++){
+    if(round)await sleep(round===1?3000:8000);
+    let tried=0;
+    for(const m of list){
+      if(dead.has(m))continue;tried++;
+      let r;
+      try{r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body})}
+      catch(e){if(navigator.onLine===false)throw {code:"offline"};last={code:"upstream_error",message:"Network error ("+(e&&e.message||e)+")"};continue}
+      if(r.status===404){dead.add(m);continue}
+      let j=null;try{j=await r.json()}catch(e){}
+      const msg=(j&&j.error&&j.error.message)||"";
+      if(r.status===400&&/not found|not supported|unknown model/i.test(msg)){dead.add(m);continue}
+      if(r.status===400&&/api key/i.test(msg)||r.status===401||r.status===403)throw {code:"bad_key"};
+      if(r.status===429){last={code:"rate_limited"};continue}
+      if(r.status>=500){last={code:"busy",message:r.status+" "+msg};continue}
+      if(!r.ok)throw {code:"upstream_error",message:r.status+" "+msg};
+      try{localStorage.setItem("gemini_model",m)}catch(e){}
+      const c=j&&j.candidates&&j.candidates[0];
+      if(!c||(j.promptFeedback&&j.promptFeedback.blockReason)||c.finishReason==="SAFETY")throw {code:"refused"};
+      const text=((c.content&&c.content.parts)||[]).map(p=>p.text||"").join("");
+      if(!text.trim())throw {code:"invalid_json"};
+      return parseJSONLoose(text);
+    }
+    if(!tried)break;
   }
   throw last||{code:"no_model"};
 }
+const RETRYABLE=new Set(["busy","rate_limited","offline","upstream_error"]);
 function errCopy(e){const c=e&&e.code;return({
   bad_key:"Gemini key missing or not working. Add it in Settings.",
-  rate_limited:"Gemini's free limit is used up for now. Tap Sort again in a minute.",
-  offline:"You're offline. The note is saved. Tap Sort again when you're back online.",
+  busy:"Gemini's free servers are swamped right now (Google's side, not you). Your note is saved and remembrd will retry on its own.",
+  rate_limited:"Gemini's free limit is used up for now. remembrd will retry on its own in a few minutes.",
+  offline:"You're offline. The note is saved and will sort when you're back online.",
   refused:"Gemini couldn't read that one. The note is saved as is.",
   invalid_json:"Gemini's answer came back scrambled. Tap Sort again."
-})[c]||("Couldn't reach Gemini. Tap Sort again."+(e&&e.message?" ("+String(e.message).slice(0,160)+")":""))}
+})[c]||("Couldn't reach Gemini. remembrd will retry on its own."+(e&&e.message?" ("+String(e.message).slice(0,160)+")":""))}
 
 function buildPrompt(note,hasImages){
   return `You are the sorting engine for remembrd, a personal quick-notes app. Read the note${hasImages?" and the attached screenshot(s)":""} and return structured info.
@@ -429,7 +450,8 @@ async function sortNote(id,blobs){
     n.status="sorted";
     if(nt)toast(nt.repeat?`To-do saved. ${repeatLabel(nt)}.`:"To-do saved. It'll stay at the top until you check it off.");
     else if(n.events.length)toast(n.events.length===1?"Found a date. Tap Add to put it on your calendar.":`Found ${n.events.length} dates`);
-  }catch(e){console.error(e);n.status="unsorted";n.err=errCopy(e);if(e&&e.code==="bad_key")openSettings()}
+  }catch(e){console.error(e);n.status="unsorted";n.err=errCopy(e);n.retry=!!(e&&RETRYABLE.has(e.code));if(n.retry)scheduleRetry();if(e&&e.code==="bad_key")openSettings()}
+  if(n.status==="sorted")n.retry=false;
   await putNote(n);render();
 }
 function addToCal(noteId,evId){
@@ -663,7 +685,13 @@ render();
     for(const n of S.notes)if(n.status==="sorting"){n.status="unsorted";n.err=null}
   }catch(e){console.warn("no storage",e);toast("Notes can't be saved in this browser (private browsing?)")}
   S.ready=true;render();
-  for(const n of S.notes.filter(x=>x.status==="unsorted"&&!x.err))sortNote(n.id);
+  for(const n of S.notes.filter(x=>x.status==="unsorted"&&(!x.err||x.retry)))sortNote(n.id);
 })();
+// quietly retry notes that failed because Gemini was busy/offline
+let retryT=null,retryDelay=60000;
+function retryPending(){if(!getKey()||navigator.onLine===false)return;const due=S.notes.filter(x=>x.status==="unsorted"&&x.retry);due.forEach(n=>sortNote(n.id));return due.length}
+function scheduleRetry(){if(retryT)return;retryT=setTimeout(()=>{retryT=null;if(retryPending())retryDelay=Math.min(retryDelay*2,15*60000)},retryDelay)}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"){retryDelay=60000;retryPending()}});
+addEventListener("online",()=>{retryDelay=60000;retryPending()});
 </script>
 </body></html>
