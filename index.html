@@ -115,6 +115,8 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 .nimg button{all:unset;cursor:zoom-in;width:72px;height:72px;border-radius:10px;overflow:hidden;background:var(--surface-2)}
 .nimg img{width:100%;height:100%;object-fit:cover;display:block}
 .sorting{display:inline-flex;align-items:center;gap:6px;color:var(--ink-3);font-size:12.5px;font-weight:600}
+.x{flex:none;width:30px;height:30px;margin-right:-4px;border:0;border-radius:50%;background:transparent;color:var(--muted,#8a7f86);font-size:15px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.x:active{background:rgba(0,0,0,.08)}
 .ev{display:flex;align-items:center;gap:10px;margin-top:10px;background:var(--accent-soft);border-radius:12px;padding:10px 12px}
 .ev .cal{flex:none;width:42px;text-align:center;background:var(--surface);border-radius:9px;padding:3px 0 4px;line-height:1.1}
 .ev .cal .m{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);font-weight:700}
@@ -299,9 +301,19 @@ async function completeTask(id){
   else{t.doneAt=new Date().toISOString();msg="Done"}
   await putNote(n);render();toast(msg,true);
 }
+// remove a to-do (evId null) or one date from a note; remembered so re-sorting won't bring it back
+async function dismissItem(id,evId){
+  const n=S.notes.find(x=>x.id===id);if(!n)return;
+  lastUndo={id,task:n.task?JSON.parse(JSON.stringify(n.task)):null,events:JSON.parse(JSON.stringify(n.events||[])),dismissed:(n.dismissed||[]).slice()};
+  let title;
+  if(evId==null){if(!n.task)return;title=n.task.title;n.task=null}
+  else{const ev=(n.events||[]).find(x=>x.id===evId);if(!ev)return;title=ev.title;n.events=n.events.filter(x=>x.id!==evId)}
+  n.dismissed=(n.dismissed||[]).concat(title.toLowerCase()).slice(-30);
+  await putNote(n);render();toast(evId==null?"To-do removed":"Date removed",true);
+}
 async function undoTask(){
   if(!lastUndo)return;const n=S.notes.find(x=>x.id===lastUndo.id);if(!n)return;
-  n.task=lastUndo.task;lastUndo=null;await putNote(n);$("#toast").hidden=true;render();
+  n.task=lastUndo.task;if(lastUndo.events)n.events=lastUndo.events;if(lastUndo.dismissed)n.dismissed=lastUndo.dismissed;lastUndo=null;await putNote(n);$("#toast").hidden=true;render();
 }
 function dayLabel(iso){const d=new Date(iso),t=new Date();const k=x=>x.toDateString();const y=new Date(t);y.setDate(t.getDate()-1);
   if(k(d)===k(t))return "Today";if(k(d)===k(y))return "Yesterday";
@@ -338,7 +350,7 @@ const MODELS=["gemini-3.5-flash","gemini-3.8-flash","gemini-flash-latest","gemin
 const toB64=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=rej;r.readAsDataURL(b)});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 // smaller copy just for Gemini: faster upload, less likely to hit overload
-function shrinkForAI(blob,max=1280,q=.8){
+function shrinkForAI(blob,max=1024,q=.75){
   return new Promise(resolve=>{
     const src=URL.createObjectURL(blob),im=new Image(),keep=()=>{URL.revokeObjectURL(src);resolve(blob)};
     im.onload=()=>{try{let w=im.naturalWidth,h=im.naturalHeight;if(!w||!h||Math.max(w,h)<=max)return keep();const sc=max/Math.max(w,h);w=Math.round(w*sc);h=Math.round(h*sc);
@@ -352,7 +364,10 @@ async function geminiJSON(prompt,images){
   const key=getKey();if(!key)throw {code:"bad_key"};
   const parts=[{text:prompt}];
   for(const b0 of (images||[])){const b=await shrinkForAI(b0);parts.push({inline_data:{mime_type:b.type&&/^image\//.test(b.type)?b.type:"image/jpeg",data:await toB64(b)}})}
-  const body=JSON.stringify({contents:[{role:"user",parts}],generationConfig:{responseMimeType:"application/json",temperature:0.2}});
+  // keep "thinking" short: sorting a note doesn't need deep reasoning, and it's the slow part
+  const think=m=>/^gemini-2\.5-flash$/.test(m)?{thinkingBudget:0}:/^gemini-2\./.test(m)?null:{thinkingLevel:"low"};
+  const noThink=new Set();
+  const bodyFor=m=>{const g={responseMimeType:"application/json",temperature:0.2},t=noThink.has(m)?null:think(m);if(t)g.thinkingConfig=t;return JSON.stringify({contents:[{role:"user",parts}],generationConfig:g})};
   let saved="";try{saved=localStorage.getItem("gemini_model")||localStorage.getItem("cleand_model")||""}catch(e){}
   const list=[...new Set([saved,...MODELS].filter(Boolean))],dead=new Set();
   let last=null;
@@ -363,11 +378,12 @@ async function geminiJSON(prompt,images){
     for(const m of list){
       if(dead.has(m))continue;tried++;
       let r;
-      try{r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body})}
+      try{r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:bodyFor(m)})}
       catch(e){if(navigator.onLine===false)throw {code:"offline"};last={code:"upstream_error",message:"Network error ("+(e&&e.message||e)+")"};continue}
       if(r.status===404){dead.add(m);continue}
       let j=null;try{j=await r.json()}catch(e){}
       const msg=(j&&j.error&&j.error.message)||"";
+      if(r.status===400&&/think/i.test(msg)&&!noThink.has(m)){noThink.add(m);list.splice(list.indexOf(m)+1,0,m);continue}
       if(r.status===400&&/not found|not supported|unknown model/i.test(msg)){dead.add(m);continue}
       if(r.status===400&&/api key/i.test(msg)||r.status===401||r.status===403)throw {code:"bad_key"};
       if(r.status===429){last={code:"rate_limited"};continue}
@@ -444,7 +460,9 @@ async function sortNote(id,blobs){
       end:/^\d{1,2}:\d{2}$/.test(String(e.end||""))?String(e.end).padStart(5,"0"):null,
       endDate:/^\d{4}-\d{2}-\d{2}$/.test(String(e.endDate||""))?String(e.endDate):null,
       location:String(e.location||"").slice(0,200),details:String(e.details||"").slice(0,500),added:false}));
-    const nt=makeTask(r.task,n.title);
+    const gone=new Set(n.dismissed||[]);
+    n.events=n.events.filter(e=>!gone.has(e.title.toLowerCase()));
+    let nt=makeTask(r.task,n.title);if(nt&&gone.has(nt.title.toLowerCase()))nt=null;
     if(nt){if(n.task){nt.log=n.task.log||[];nt.added=n.task.added}n.task=nt;
       const tk=nt.title.toLowerCase();n.events=n.events.filter(e=>!(e.date===nt.due&&e.title.toLowerCase().split(/\W+/).some(w=>w.length>3&&tk.includes(w))))}
     n.status="sorted";
@@ -579,14 +597,16 @@ function taskHTML(n){
   return `<div class="todo ${st}${over?" over":""}">
     <button class="tick" data-act="${st==="done"?"reopen":"tdone"}" data-id="${n.id}" aria-label="${st==="done"?"Mark not done":"Mark done"}">${st==="done"?"✓":""}</button>
     <div class="info"><b>${esc(t.title)}</b><span>${esc([dueLabel(t),repeatLabel(t)].filter(Boolean).join(" · "))}</span></div>
-    ${st==="done"?"":`<button class="add ${t.added?"done":""}" data-act="tcal" data-id="${n.id}">${t.added?"On cal ✓":"Add"}</button>`}</div>`;
+    ${st==="done"?"":`<button class="add ${t.added?"done":""}" data-act="tcal" data-id="${n.id}">${t.added?"On cal ✓":"Add"}</button>`}
+    <button class="x" data-act="tdismiss" data-id="${n.id}" aria-label="Remove this to-do">✕</button></div>`;
 }
 function evHTML(n,ev){
   const s=evStart(ev);if(!s)return "";
   const past=s<new Date(new Date().toDateString());
   return `<div class="ev"><div class="cal"><div class="m">${s.toLocaleDateString(undefined,{month:"short"})}</div><div class="d">${s.getDate()}</div></div>
     <div class="info"><b>${esc(ev.title)}</b><span>${esc(fmtEvWhen(ev))}${ev.location?" · "+esc(ev.location):""}</span></div>
-    ${past?"":`<button class="add ${ev.added?"done":""}" data-act="cal" data-id="${n.id}" data-v="${ev.id}">${ev.added?"Added ✓":"Add"}</button>`}</div>`;
+    ${past?"":`<button class="add ${ev.added?"done":""}" data-act="cal" data-id="${n.id}" data-v="${ev.id}">${ev.added?"Added ✓":"Add"}</button>`}
+    <button class="x" data-act="evdismiss" data-id="${n.id}" data-v="${ev.id}" aria-label="Remove this date">✕</button></div>`;
 }
 function notesHTML(){
   if(!S.ready)return captureHTML()+`<div class="empty">Loading…</div>`;
@@ -641,6 +661,8 @@ document.addEventListener("click",e=>{
   else if(a==="cal")addToCal(b.dataset.id,v);
   else if(a==="tdone")completeTask(b.dataset.id);
   else if(a==="undo")undoTask();
+  else if(a==="tdismiss")dismissItem(b.dataset.id,null);
+  else if(a==="evdismiss")dismissItem(b.dataset.id,v);
   else if(a==="reopen"){const n=S.notes.find(x=>x.id===b.dataset.id);if(n&&n.task){n.task.doneAt=null;putNote(n);render()}}
   else if(a==="tcal"){const n=S.notes.find(x=>x.id===b.dataset.id);if(n&&n.task){window.open(taskGcalUrl(n),"_blank","noopener");n.task.added=true;putNote(n);setTimeout(render,300)}}
   else if(a==="mktask"){S.edit.task=S.edit.task?null:{title:S.edit.title||"To-do",due:todayStr(),anchor:todayStr(),repeat:null,log:[],doneAt:null,added:false};renderSheet()}
