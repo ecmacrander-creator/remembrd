@@ -145,6 +145,9 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 .ev .info span{font-size:13px;color:var(--ink-2)}
 .ev .add{flex:none;border:0;border-radius:999px;padding:8px 12px;font-weight:700;font-size:13px;background:var(--accent);color:var(--accent-ink);min-height:36px}
 .ev .add.done{background:var(--good-soft);color:var(--good)}
+.ev .info .oncal{display:block;font-size:12.5px;color:var(--good);font-weight:600;margin-top:2px}
+.calst{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+.linkbtn{border:0;background:none;padding:0;color:var(--accent);font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .todo{display:flex;align-items:center;gap:12px;margin-top:10px;background:var(--surface-2);border-radius:12px;padding:10px 12px}
 .todo.now{background:var(--accent-soft)}
 .todo.over .info span{color:var(--danger);font-weight:600}
@@ -225,7 +228,7 @@ const whoName=t=>t&&t.who==="partner"?partnerName():"Me";
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2)).replace(/-/g,"");
-function toast(msg,undo){const t=$("#toast");t.innerHTML=esc(msg)+(undo?' <button class="undo" data-act="undo">Undo</button>':"");t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,undo?5000:2600)}
+function toast(msg,undo,act){const t=$("#toast");t.innerHTML=esc(msg)+(undo?' <button class="undo" data-act="undo">Undo</button>':"")+(act?` <button class="undo" data-act="${act.act}" data-id="${esc(act.id||"")}" data-v="${esc(act.v||"")}">${esc(act.label)}</button>`:"");t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,undo||act?6000:2600)}
 const icon={
   shot:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>',
   cam:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
@@ -566,12 +569,109 @@ async function sortNote(id,blobs){
   delete ABORT[id];stopProg(id);
   if(!S.notes.includes(n))return; // deleted while sorting
   await putNote(n);render();
+  if(n.status==="sorted"&&((n.events||[]).length||n.task))gcCheck(false);
 }
-function addToCal(noteId,evId){
+/* ---------- calendar check (read-only Google Calendar) ---------- */
+const GCAL_SCOPE="https://www.googleapis.com/auth/calendar.readonly";
+const GC={busy:false,cals:null};
+const gcRedirect=()=>location.origin+location.pathname;
+function gcId(){return lsGet("gcal_client_id","")||""}
+function gcTok(){const t=lsGet("gcal_token",null);return t&&t.exp>Date.now()+60000?t.t:null}
+function gcOn(){return !!gcId()&&!!lsGet("gcal_ok",false)}
+function gcAuth(silent){
+  const id=gcId();if(!id)return;
+  const st=uid();try{sessionStorage.setItem("gcal_state",st);sessionStorage.setItem("gcal_mode",silent?"silent":"manual");if(silent)sessionStorage.setItem("gcal_silent",String(Date.now()))}catch(e){}
+  const q=new URLSearchParams({client_id:id,redirect_uri:gcRedirect(),response_type:"token",scope:GCAL_SCOPE,state:st,include_granted_scopes:"true"});
+  if(silent)q.set("prompt","none");
+  const hint=lsGet("gcal_hint","");if(hint)q.set("login_hint",hint);
+  location.href="https://accounts.google.com/o/oauth2/v2/auth?"+q;
+}
+function gcTakeRedirect(){
+  if(!location.hash||!/access_token=|error=/.test(location.hash))return null;
+  const p=new URLSearchParams(location.hash.slice(1));history.replaceState(null,"",location.pathname+location.search);
+  let st="";try{st=sessionStorage.getItem("gcal_state")||"";sessionStorage.removeItem("gcal_state")}catch(e){}
+  if(!st||p.get("state")!==st)return "state";
+  if(p.get("error")){lsSet("gcal_need",true);return p.get("error")}
+  lsSet("gcal_token",{t:p.get("access_token"),exp:Date.now()+(+p.get("expires_in")||3600)*1000});lsSet("gcal_ok",true);lsSet("gcal_need",false);return "ok";
+}
+async function gcGet(path,params){
+  const tok=gcTok();if(!tok)throw {code:"noauth"};
+  const r=await fetch("https://www.googleapis.com/calendar/v3/"+path+(params?"?"+new URLSearchParams(params):""),{headers:{Authorization:"Bearer "+tok}});
+  if(r.status===401){lsSet("gcal_token",null);throw {code:"noauth"}}
+  if(!r.ok)throw {code:"http",status:r.status};
+  return r.json();
+}
+const STOPW=new Set("the and for with from your our you are vs at in on of to a an is be by day".split(" "));
+const words=s=>String(s||"").toLowerCase().replace(/[^a-z0-9 ]+/g," ").split(/\s+/).filter(w=>w.length>2&&!STOPW.has(w)).map(w=>w.length>4?w.replace(/s$/,""):w);
+function titleMatch(a,b){const A=new Set(words(a)),B=new Set(words(b));if(!A.size||!B.size)return false;let n=0;A.forEach(w=>{if(B.has(w))n++});return n/Math.min(A.size,B.size)>=0.5}
+// item: {title,date:"YYYY-MM-DD",start:"HH:MM"|null}; c: Google event
+function calMatch(item,c){
+  if(c.status==="cancelled"||!c.start)return false;
+  const allDay=!c.start.dateTime;
+  const cs=allDay?parseYmd(c.start.date):new Date(c.start.dateTime);
+  const ce=allDay?new Date(parseYmd(c.end&&c.end.date||c.start.date).getTime()-864e5):new Date(c.end&&c.end.dateTime||c.start.dateTime);
+  const d=item.date;if(d<ymd(cs)||d>ymd(ce))return false;
+  if(item.start&&!allDay){const s=evStart(item);if(Math.abs(s-cs)>90*6e4)return false}
+  return titleMatch(item.title,c.summary);
+}
+function calItems(force){
+  const today=todayStr(),stale=6*36e5,out=[];
+  for(const n of S.notes){
+    for(const ev of (n.events||[]))if(ev.date>=today&&!ev.added&&(force||!ev.cal||Date.now()-ev.cal.at>stale))out.push({n,obj:ev,item:ev});
+    const t=n.task;if(t&&!t.doneAt&&!t.added&&(force||!t.cal||Date.now()-t.cal.at>stale))out.push({n,obj:t,item:{title:t.title,date:t.due,start:null}});
+  }
+  return out.filter(x=>x.item.date<=ymd(new Date(Date.now()+180*864e5)));
+}
+async function gcCheck(force){
+  if(!gcOn()||GC.busy)return;
+  const todo=calItems(force);if(!todo.length)return;
+  if(!gcTok())return;
+  GC.busy=true;if(S.view==="upcoming")render();
+  try{
+    if(!GC.cals){const r=await gcGet("users/me/calendarList",{minAccessRole:"reader"});
+      GC.cals=(r.items||[]).filter(c=>c.selected!==false&&!/#(holiday|contacts|weeknum)@/.test(c.id));
+      const p=(r.items||[]).find(c=>c.primary);if(p)lsSet("gcal_hint",p.id)}
+    const dates=todo.map(x=>x.item.date).sort(),min=parseYmd(dates[0]),max=parseYmd(dates[dates.length-1]);
+    min.setDate(min.getDate()-1);max.setDate(max.getDate()+2);
+    const lists=await Promise.all(GC.cals.map(c=>gcGet("calendars/"+encodeURIComponent(c.id)+"/events",{timeMin:min.toISOString(),timeMax:max.toISOString(),singleEvents:"true",maxResults:"2500",fields:"items(summary,start,end,status)"}).then(r=>r.items||[]).catch(e=>{if(e.code==="noauth")throw e;return []})));
+    const all=lists.flat(),touched=new Set();
+    for(const x of todo){const hit=all.find(c=>calMatch(x.item,c));x.obj.cal={at:Date.now(),match:hit?String(hit.summary||"").slice(0,120):null};touched.add(x.n)}
+    for(const n of touched)await putNote(n);
+    lsSet("gcal_last",Date.now());
+  }catch(e){console.warn("calendar check",e)}
+  finally{GC.busy=false;render()}
+}
+// on app open: refresh an expired token quietly (once per half hour) when something needs checking
+function gcMaybeRefresh(){
+  if(!gcOn()||gcTok()||lsGet("gcal_need",false)||!calItems(false).length)return;
+  if(S.draft||S.shots.length||S.notes.some(n=>n.status==="sorting"))return;
+  let last=0;try{last=+sessionStorage.getItem("gcal_silent")||0}catch(e){}
+  if(Date.now()-last<30*6e4)return;
+  gcAuth(true);
+}
+function dupToast(match,noteId,evId){toast(`Already on your calendar as "${match}"`,false,{label:"Add anyway",act:evId?"calforce":"tcalforce",id:noteId,v:evId||""})}
+function addToCal(noteId,evId,force){
   const n=S.notes.find(x=>x.id===noteId),ev=n&&n.events.find(x=>x.id===evId);if(!ev)return;
+  if(!force&&ev.cal&&ev.cal.match){dupToast(ev.cal.match,noteId,evId);return}
   const url=gcalUrl(ev);if(!url){toast("That date couldn't be read");return}
   window.open(url,"_blank","noopener");
   ev.added=true;putNote(n);setTimeout(render,300);
+}
+function addTaskToCal(noteId,force){
+  const n=S.notes.find(x=>x.id===noteId);if(!n||!n.task)return;const t=n.task;
+  if(!force&&!t.added&&t.cal&&t.cal.match){dupToast(t.cal.match,noteId,null);return}
+  window.open(taskGcalUrl(n),"_blank","noopener");t.added=true;putNote(n);setTimeout(render,300);
+}
+function gcConnect(){
+  const id=($("#gcidin").value||"").trim();
+  if(!/\.apps\.googleusercontent\.com$/.test(id)){toast("That doesn't look like a Client ID. It ends in .apps.googleusercontent.com.");return}
+  lsSet("gcal_client_id",id);gcAuth(false);
+}
+function gcDisconnect(){
+  const t=gcTok();if(t)fetch("https://oauth2.googleapis.com/revoke?token="+encodeURIComponent(t),{method:"POST"}).catch(()=>{});
+  ["gcal_token","gcal_ok","gcal_need","gcal_last"].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});GC.cals=null;
+  S.notes.forEach(n=>{let ch=false;(n.events||[]).forEach(e=>{if(e.cal){delete e.cal;ch=true}});if(n.task&&n.task.cal){delete n.task.cal;ch=true}if(ch)putNote(n)});
+  renderSettings();toast("Calendar disconnected");
 }
 
 /* ---------- edit sheet ---------- */
@@ -631,6 +731,13 @@ function renderSettings(){
   <input id="keyin" class="inp" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste key here" value="${esc(k)}" style="font-family:var(--mono);font-size:15px;margin-top:10px">
   ${sheetErr?`<div class="err">${esc(sheetErr)}</div>`:""}
   <button class="btn primary big" data-act="savekey" style="margin-top:10px" ${sheetBusy?"disabled":""}>${sheetBusy?"Checking…":"Save key"}</button>
+  <span class="lbl">Calendar check</span>
+  <p class="hint" style="margin-top:0">Lets remembrd look at your Google Calendar (read-only) so it won't suggest adding something that's already there.</p>
+  ${gcOn()?`<p style="margin:6px 0 0;font-weight:600">${lsGet("gcal_need",false)?"Needs a quick reconnect":"Connected"}${lsGet("gcal_hint","")?` <span class="hint" style="font-weight:400">· ${esc(lsGet("gcal_hint",""))}</span>`:""}</p>
+    <div class="sheetfoot" style="margin-top:8px">${lsGet("gcal_need",false)?`<button class="btn primary" data-act="gcauth">Reconnect</button>`:`<button class="btn" data-act="gccheck">Check now</button>`}<button class="btn ghost danger" data-act="gcoff">Disconnect</button></div>`
+  :`<ol><li>In <a href="https://console.cloud.google.com/apis/library/calendar-json.googleapis.com" target="_blank" rel="noopener">Google Cloud</a>, make a project and enable the <b>Google Calendar API</b>.</li><li>Set up the <b>OAuth consent screen</b> (External), then tap <b>Publish app</b>.</li><li>Under <b>Credentials</b>, create an <b>OAuth client ID</b> → Web application. Add this as an authorized redirect URI:<br><code style="font-family:var(--mono);font-size:13px;word-break:break-all">${esc(gcRedirect())}</code></li><li>Paste the Client ID below.</li></ol>
+    <input id="gcidin" class="inp" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="….apps.googleusercontent.com" value="${esc(gcId())}" style="font-family:var(--mono);font-size:14px;margin-top:10px">
+    <button class="btn primary big" data-act="gcconnect" style="margin-top:10px">Connect calendar</button>`}
   <span class="lbl">Your partner's name</span>
   <p class="hint" style="margin-top:0">Used when you assign to-dos to him.</p>
   <input id="partnerin" class="inp" type="text" autocomplete="off" placeholder="Name" value="${esc(partnerName()==="Partner"?"":partnerName())}" data-partner>
@@ -700,7 +807,7 @@ function taskHTML(n){
     <button class="tick" data-act="${st==="done"?"reopen":"tdone"}" data-id="${n.id}" aria-label="${st==="done"?"Mark not done":"Mark done"}">${st==="done"?"✓":""}</button>
     <div class="info"><b>${esc(t.title)}</b><span>${esc([dueLabel(t),repeatLabel(t)].filter(Boolean).join(" · "))}</span>
       <button class="who ${t.who==="partner"?"p":""}" data-act="twho" data-id="${n.id}" aria-label="Assigned to ${esc(whoName(t))}. Tap to switch.">${esc(whoName(t))}</button></div>
-    ${st==="done"?"":`<button class="add ${t.added?"done":""}" data-act="tcal" data-id="${n.id}">${t.added?"On cal ✓":"Add"}</button>`}
+    ${st==="done"?"":`<button class="add ${t.added||t.cal&&t.cal.match?"done":""}" data-act="tcal" data-id="${n.id}">${t.added||t.cal&&t.cal.match?"On cal ✓":"Add"}</button>`}
     ${st==="done"?"":`<button class="x sh" data-act="tshare" data-id="${n.id}" aria-label="Send this to-do to someone"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button>`}
     <button class="x" data-act="tdismiss" data-id="${n.id}" aria-label="Remove this to-do">✕</button></div>`;
 }
@@ -710,8 +817,8 @@ function evHTML(n,ev){
   if(S.sel){const on=S.sel.has(key);return `<div class="ev sel ${on?"on":""}" data-act="sel" data-v="${key}" role="checkbox" aria-checked="${on}"><span class="selc">${on?"✓":""}</span><div class="cal"><div class="m">${s.toLocaleDateString(undefined,{month:"short"})}</div><div class="d">${s.getDate()}</div></div>
     <div class="info"><b>${esc(ev.title)}</b><span>${esc(fmtEvWhen(ev))}${ev.location?" · "+esc(ev.location):""}</span></div></div>`}
   return `<div class="ev"><div class="cal"><div class="m">${s.toLocaleDateString(undefined,{month:"short"})}</div><div class="d">${s.getDate()}</div></div>
-    <div class="info"><b>${esc(ev.title)}</b><span>${esc(fmtEvWhen(ev))}${ev.location?" · "+esc(ev.location):""}</span></div>
-    ${past?"":`<button class="add ${ev.added?"done":""}" data-act="cal" data-id="${n.id}" data-v="${ev.id}">${ev.added?"Added ✓":"Add"}</button>`}
+    <div class="info"><b>${esc(ev.title)}</b><span>${esc(fmtEvWhen(ev))}${ev.location?" · "+esc(ev.location):""}</span>${!ev.added&&ev.cal&&ev.cal.match?`<span class="oncal">On your calendar as "${esc(ev.cal.match)}"</span>`:""}</div>
+    ${past?"":`<button class="add ${ev.added||ev.cal&&ev.cal.match?"done":""}" data-act="cal" data-id="${n.id}" data-v="${ev.id}">${ev.added?"Added ✓":ev.cal&&ev.cal.match?"On cal ✓":"Add"}</button>`}
     <button class="x" data-act="evdismiss" data-id="${n.id}" data-v="${ev.id}" aria-label="Remove this date">✕</button></div>`;
 }
 function notesHTML(){
@@ -745,9 +852,16 @@ function todoHTML(){
   if(done.length)html+=`<div class="day">Done</div>`+done.map(row).join("");
   return html+`<div class="pad"></div>`;
 }
+function calStatusHTML(){
+  if(!gcOn())return "";
+  if(lsGet("gcal_need",false))return `<p class="hint calst">Calendar check paused. <button class="linkbtn" data-act="gcauth">Reconnect</button></p>`;
+  if(GC.busy)return `<p class="hint calst"><span class="spinner"></span> Checking your calendar…</p>`;
+  const last=lsGet("gcal_last",0);
+  return `<p class="hint calst">${last?"Checked against your calendar "+esc(fmtTime(new Date(last).toISOString())):"Not checked against your calendar yet"} · <button class="linkbtn" data-act="gccheck">Check now</button></p>`;
+}
 function upcomingHTML(){
   const u=upcoming();
-  let html=`<div style="margin-top:18px"><h1 style="font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em">Upcoming</h1><p class="hint" style="margin-top:2px">Every date remembrd found, soonest first.</p></div>`+selTools(false);
+  let html=`<div style="margin-top:18px"><h1 style="font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em">Upcoming</h1><p class="hint" style="margin-top:2px">Every date remembrd found, soonest first.</p>${calStatusHTML()}</div>`+selTools(false);
   if(!u.length)return html+`<div class="empty">No upcoming dates yet. Notes with a date or time will show up here.</div>`;
   let last="";
   for(const {n,ev,s} of u){const d=dayLabel(s.toISOString()).replace("Yesterday","");const lab=s.toDateString()===new Date().toDateString()?"Today":s.toLocaleDateString(undefined,{weekday:"long",month:"short",day:"numeric"});
@@ -766,6 +880,12 @@ document.addEventListener("click",e=>{
   else if(a==="filter"){S.filter=v;render()}
   else if(a==="shotrm"){const s=S.shots.splice(+v,1)[0];if(s)URL.revokeObjectURL(s.url);render()}
   else if(a==="cal")addToCal(b.dataset.id,v);
+  else if(a==="calforce"){$("#toast").hidden=true;addToCal(b.dataset.id,v,true)}
+  else if(a==="tcalforce"){$("#toast").hidden=true;addTaskToCal(b.dataset.id,true)}
+  else if(a==="gcconnect")gcConnect();
+  else if(a==="gcauth")gcAuth(false);
+  else if(a==="gccheck"){if(gcTok())gcCheck(true);else gcAuth(true)}
+  else if(a==="gcoff")gcDisconnect();
   else if(a==="tdone")completeTask(b.dataset.id);
   else if(a==="undo")undoTask();
   else if(a==="cancelsort")cancelNote(b.dataset.id);
@@ -780,7 +900,7 @@ document.addEventListener("click",e=>{
   else if(a==="tdismiss")dismissItem(b.dataset.id,null);
   else if(a==="evdismiss")dismissItem(b.dataset.id,v);
   else if(a==="reopen"){const n=S.notes.find(x=>x.id===b.dataset.id);if(n&&n.task){n.task.doneAt=null;putNote(n);render()}}
-  else if(a==="tcal"){const n=S.notes.find(x=>x.id===b.dataset.id);if(n&&n.task){window.open(taskGcalUrl(n),"_blank","noopener");n.task.added=true;putNote(n);setTimeout(render,300)}}
+  else if(a==="tcal")addTaskToCal(b.dataset.id);
   else if(a==="mktask"){S.edit.task=S.edit.task?null:{title:S.edit.title||"To-do",due:todayStr(),anchor:todayStr(),repeat:null,log:[],doneAt:null,added:false};renderSheet()}
   else if(a==="edit")openEdit(b.dataset.id);
   else if(a==="resort"){const id=b.dataset.id||(S.edit&&S.edit.id);if(!b.dataset.id){$("#sheet").hidden=true;S.edit=null}sortNote(id)}
@@ -815,6 +935,7 @@ $("#sheet").addEventListener("click",e=>{if(e.target.id==="sheet")closeSheet()})
 $("#lb").addEventListener("click",e=>{if(e.target.id==="lb")$("#lb").hidden=true});
 
 /* ---------- boot ---------- */
+const gcBack=gcTakeRedirect();
 render();
 (async function boot(){
   try{S.db=await openIDB();if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
@@ -824,13 +945,16 @@ render();
     for(const n of S.notes)if(n.status==="sorting"){n.status="unsorted";n.err=null}
   }catch(e){console.warn("no storage",e);toast("Notes can't be saved in this browser (private browsing?)")}
   S.ready=true;render();
+  if(gcBack==="ok"){if(!lsGet("gcal_last",0))toast("Calendar connected");gcCheck(true)}
+  else if(gcBack&&gcBack!=="state"&&(()=>{try{return sessionStorage.getItem("gcal_mode")==="manual"}catch(e){return false}})())toast("Calendar didn't connect. Check the Client ID and redirect URI in Settings.");
   for(const n of S.notes.filter(x=>x.status==="unsorted"&&(!x.err||x.retry)))sortNote(n.id);
+  if(gcBack===null){if(gcTok())gcCheck(false);else gcMaybeRefresh()}
 })();
 // quietly retry notes that failed because Gemini was busy/offline
 let retryT=null,retryDelay=60000;
 function retryPending(){if(!getKey()||navigator.onLine===false)return;const due=S.notes.filter(x=>x.status==="unsorted"&&x.retry);due.forEach(n=>sortNote(n.id));return due.length}
 function scheduleRetry(){if(retryT)return;retryT=setTimeout(()=>{retryT=null;if(retryPending())retryDelay=Math.min(retryDelay*2,15*60000)},retryDelay)}
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"){retryDelay=60000;retryPending()}});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"){retryDelay=60000;retryPending();gcCheck(false)}});
 addEventListener("online",()=>{retryDelay=60000;retryPending()});
 </script>
 </body></html>
