@@ -159,6 +159,12 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 .wkbtns .add{border:0;border-radius:999px;padding:7px 12px;font-weight:700;font-size:13px;background:var(--accent);color:var(--accent-ink);min-height:34px}
 .wkbtns .add.done{background:var(--good-soft);color:var(--good)}
 .wkbtns .btn{min-height:34px;padding:4px 12px}
+.tdyhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:22px 2px 4px}
+.tdyhead h2{font-size:19px;font-weight:800;letter-spacing:-.01em}
+.tdyhead span{font-size:13px;color:var(--ink-2);font-weight:600}
+.duebox.tdy{margin-top:14px}
+.tmeta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0 0 44px}
+.rmbtns{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .catbtn{border:0;cursor:pointer;font:inherit;display:inline-flex;align-items:center;gap:6px}
 .catbtn .caret{font-size:10px;opacity:.55;margin-left:-1px}
 .addcat{border-style:dashed!important;color:var(--ink-2)}
@@ -519,6 +525,132 @@ async function dismissItem(id,evId){
   const par=n.parent&&S.notes.find(x=>x.id===n.parent);if(par){par.dismissed=(par.dismissed||[]).concat(title.toLowerCase()).slice(-30);putNote(par)}
   await putNote(n);render();toast(evId==null?"To-do removed":"Date removed",true);
 }
+/* ---------- removing things that are also on Google Calendar ---------- */
+const calKeyOf=c=>`${c.calId||""}/${c.id||""}/${c.date||""}`;
+// find the Google Calendar event behind a remembrd date or to-do
+function linkedCal(o,item){
+  if(!o)return null;const cal=W.cal.items||[];
+  if(o.gcalId){const hit=cal.find(c=>c.id===o.gcalId);return hit||{id:o.gcalId,calId:o.gcalCal||"primary",title:item.title,cal:"",date:item.date,edit:true}}
+  if(o.added||o.cal&&o.cal.match)return cal.find(c=>c.id&&sameThing(item,c))||null;
+  return null;
+}
+function askRemove(spec){S.rm=spec;S.sheetMode="rmask";renderSheet();$("#sheet").hidden=false}
+function renderRmAsk(){
+  const r=S.rm;if(!r)return closeSheet();
+  const g=r.gcal,calOnly=!r.noteId&&!r.deleteNote;
+  $("#sheet").innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Remove">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2>Remove this?</h2><button class="iconbtn" data-act="closesheet" aria-label="Close">✕</button></div>
+    <p style="margin:6px 0 0;font-weight:700">${esc(r.title)}</p>
+    <p class="hint" style="margin-top:4px">${r.deleteNote?`${r.gcals.length===1?"One date in this note is":r.gcals.length+" dates in this note are"} also on your Google Calendar`:calOnly?"This is on your Google Calendar":"This is also on your Google Calendar"}${g.cal?` (${esc(g.cal)})`:""}.${g.rec?" It repeats, so only this one date would be deleted.":""}</p>
+    <div class="rmbtns">
+      ${g.edit===false?`<p class="hint">remembrd can't edit that calendar, so it can only be hidden here.</p>`:`<button class="btn danger solid big" data-act="rmboth">${calOnly&&!r.deleteNote?"Delete from Google Calendar":r.deleteNote?"Delete here and from Google Calendar":"Remove from both"}</button>`}
+      <button class="btn big" data-act="rmlocal">${r.deleteNote?"Only delete in remembrd":calOnly?"Just hide it in remembrd":"Only remove from remembrd"}</button>
+      <button class="btn ghost" data-act="closesheet">Cancel</button></div>
+    <p class="hint">Deleted events go to Google Calendar's trash for 30 days.</p></div>`;
+}
+async function gcDelete(g){
+  if(!canEditCal()){lsSet("gcal_edit",true);toast("Google will ask once to let remembrd edit your calendar. Then tap ✕ again.");setTimeout(()=>gcAuth(false),1400);return false}
+  const tok=gcTok();if(!tok){gcAuth(false);return false}
+  try{
+    const r=await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(g.calId||"primary")}/events/${encodeURIComponent(g.id)}?sendUpdates=none`,{method:"DELETE",headers:{Authorization:"Bearer "+tok}});
+    if(r.status===401){lsSet("gcal_token",null);gcAuth(false);return false}
+    if(r.status===403){let m="";try{m=(await r.json()).error.message||""}catch(e){}
+      if(/insufficient|scope/i.test(m)){lsSet("gcal_edit",true);lsSet("gcal_scope","");toast("Google will ask once to let remembrd edit your calendar. Then tap ✕ again.");setTimeout(()=>gcAuth(false),1400);return false}
+      toast("Google won't let remembrd delete from that calendar. It may be shared or read-only.");return false}
+    if(!r.ok&&r.status!==404&&r.status!==410){toast("Couldn't delete it from Google Calendar. Try again.");return false}
+    W.cal.items=(W.cal.items||[]).filter(i=>!(i.id===g.id&&(i.calId===g.calId||!g.calId||g.calId==="primary")));lsSet("week_cal",W.cal);
+    return true;
+  }catch(e){toast("Couldn't reach Google. Check your connection.");return false}
+}
+function hideCal(key){const h=lsGet("cal_hidden",[]);if(!h.includes(key))h.push(key);lsSet("cal_hidden",h.slice(-400))}
+function deleteNoteNow(id){
+  const n=S.notes.find(x=>x.id===id);if(ABORT[id])ABORT[id].abort();const kids=n?kidsOf(n):[];
+  S.notes=S.notes.filter(x=>x.id!==id&&x.parent!==id);delNote(id);kids.forEach(c=>delNote(c.id));(n&&n.images||[]).forEach(delBlob);
+}
+async function rmDo(both){
+  const r=S.rm;if(!r)return;S.rm=null;closeSheet();
+  if(r.deleteNote){
+    if(both){for(const g of r.gcals.filter(g=>g.edit!==false)){if(!await gcDelete(g))return}}
+    deleteNoteNow(r.deleteNote);render();toast(both?"Deleted here and from Google Calendar":"Deleted");return}
+  if(both){const ok=await gcDelete(r.gcal);if(!ok)return}
+  if(r.noteId)await removeLocal(r.noteId,r.evId,both);
+  else{if(!both)hideCal(r.calKey);render();toast(both?"Deleted from Google Calendar":"Hidden in remembrd")}
+}
+async function removeLocal(id,evId,both){
+  const n=S.notes.find(x=>x.id===id);if(!n)return;
+  if(n.fromCal&&evId==null){
+    lsSet("cal_tasks_gone",lsGet("cal_tasks_gone",[]).concat(n.calKey||"").slice(-400));
+    S.notes=S.notes.filter(x=>x!==n);delNote(n.id);render();toast(both?"Removed from both":"To-do removed");return}
+  await dismissItem(id,evId);
+  if(both)toast(evId==null?"To-do removed from both":"Removed from both",true);
+}
+// every ✕ goes through here: ask when Google Calendar has it too
+function tryRemove(id,evId){
+  const n=S.notes.find(x=>x.id===id);if(!n)return;
+  let o,item;
+  if(evId==null){o=n.task;item=o&&{title:o.title,date:o.due,start:null}}
+  else{o=(n.events||[]).find(x=>x.id===evId);item=o}
+  const g=gcOn()&&linkedCal(o,item||{});
+  if(g)return askRemove({noteId:id,evId,title:item.title,gcal:g});
+  removeLocal(id,evId,false);
+}
+function tryRemoveCal(key){
+  const c=(W.cal.items||[]).find(x=>calKeyOf(x)===key);if(!c)return;
+  askRemove({calKey:key,title:c.title,gcal:c});
+}
+
+/* ---------- to-dos hiding inside calendar events ---------- */
+const CT={busy:false};
+async function calTasksMaybe(force){
+  if(!getKey()||!gcOn()||CT.busy||!S.ready||!W.cal.at||W.calBusy)return;
+  const today=todayStr(),end=ymd(addDays(14)),seen=new Set(),list=[];
+  for(const c of (W.cal.items||[])){if(c.date<today||c.date>end)continue;const k=(c.calId||"")+"/"+(c.id||c.title);if(seen.has(k))continue;seen.add(k);list.push(c)}
+  const lines=list.slice(0,120).map((c,i)=>`[${i+1}] ${c.date}${c.start?" "+c.start:" all day"} (${c.cal}): ${c.title}${c.location?" @ "+c.location:""}${c.desc?" | notes: "+c.desc.replace(/\s+/g," ").slice(0,450):""}`);
+  const key=today+"|ct1|"+lines.join("\n");
+  const st=lsGet("cal_tasks",{key:"",at:0})||{key:"",at:0};
+  if(!force&&(st.key===key||Date.now()-st.at<20*6e4&&String(st.key).slice(0,10)===today))return;
+  if(!lines.length){lsSet("cal_tasks",{key,at:Date.now()});return}
+  CT.busy=true;render();
+  try{
+    const r=await geminiJSON(`Today is ${nowContext()}.
+Below are a busy working mom's Google Calendar events for the next two weeks. Find the to-dos hiding in them: things she has to DO beyond just showing up. Examples: bring, wear, pack, buy, pay, sign, send, return a form, RSVP, sign up, register, book, order, pick up or drop off something, make food, volunteer prep, and deadlines ("forms due", "last day to order", "registration closes"). An event whose title is itself a chore ("Pay tuition", "Call dentist", "Renew registration") is a to-do too.
+Do NOT make a to-do for simply attending, driving to, or watching something. Only use what is written; don't invent. Most events have no to-do; it's fine to return none.
+Her kids, with their teachers, teams and activities: ${kidsPrompt()||"(not set)"}. Name the kid in the title when the event is clearly for one.
+For each to-do: "ref" = the event's number, "title" = short imperative under 9 words ("Bring snacks for Arthur's team"), "due" = YYYY-MM-DD she must do it by (the deadline if stated; otherwise the event's date), "category" = one of ${JSON.stringify(getCats())} or a short new one.
+${catGuide()}
+Return JSON: {"items":[{"ref":1,"title":"...","due":"YYYY-MM-DD","category":"..."}]}
+
+${lines.join("\n")}`,[]);
+    const gone=new Set(lsGet("cal_tasks_gone",[]));let made=0;
+    for(const x of (Array.isArray(r.items)?r.items:[]).slice(0,25)){
+      const c=list[(+x.ref||0)-1],title=String(x.title||"").trim().slice(0,100);if(!c||!title)continue;
+      const due=/^\d{4}-\d{2}-\d{2}$/.test(String(x.due||""))?String(x.due):c.date;
+      const ck=((c.calId||"")+"/"+(c.id||c.title)+"|"+normT(title)).slice(0,220);
+      if(gone.has(ck)||S.notes.some(n=>n.calKey===ck))continue;
+      if(S.notes.some(n=>n.task&&!n.task.doneAt&&Math.abs(parseYmd(n.task.due)-parseYmd(due))<=864e5&&titleMatch(n.task.title,title)))continue;
+      const t=makeTask({title,due},title);t.who="me";
+      const n={id:uid(),createdAt:new Date().toISOString(),text:"From your calendar: "+c.title+(c.desc?"\n"+c.desc.slice(0,300):""),title,summary:"",category:addCat(x.category||"Home"),images:[],events:[],status:"sorted",source:"cal",fromCal:true,calKey:ck,calLink:c.link||"",task:t};
+      S.notes.unshift(n);await putNote(n);made++;
+    }
+    lsSet("cal_tasks",{key,at:Date.now()});
+    if(made)toast(`Found ${made} to-do${made===1?"":"s"} in your calendar`);
+  }catch(e){console.warn("cal tasks",e)}
+  finally{CT.busy=false;render()}
+}
+
+/* ---------- Today: tasks right under the note box ---------- */
+function todayTasksHTML(){
+  const end=ymd(addDays(7)),mine=n=>S.kid==="all"||noteKids(n).includes(S.kid);
+  const open=S.notes.filter(n=>n.task&&!n.task.doneAt&&mine(n)).sort((a,b)=>a.task.due<b.task.due?-1:1);
+  const soon=open.filter(n=>n.task.due<=end),later=open.length-soon.length;
+  let h=`<section class="duebox tdy"><div class="duehead"><h2>To do</h2><span>${soon.length?soon.length+" this week":""}</span></div>`;
+  if(CT.busy)h+=`<p class="hint" style="margin:4px 0 0"><span class="spinner"></span> Looking for to-dos in your calendar…</p>`;
+  if(!soon.length&&!CT.busy)h+=`<p class="hint" style="margin:4px 0 0">${S.kid==="all"?"Nothing due this week.":"Nothing for "+esc(S.kid)+" this week."}${gcOn()&&getKey()?"":" Connect Google and add your Gemini key in Settings so remembrd can pull to-dos from your calendar."}</p>`;
+  h+=soon.slice(0,10).map(n=>`<div class="duerow"><span class="dot" style="background:${catColor(n.category)}"></span><div style="flex:1;min-width:0">${taskHTML(n)}<div class="tmeta">${kidBadges(noteKids(n))}${noteTag(n)}</div></div></div>`).join("");
+  if(soon.length>10||later)h+=`<button class="linkbtn" data-act="nav" data-v="todo" style="margin-top:10px">See all ${open.length} to-dos</button>`;
+  return h+`</section>`;
+}
+
 // stop a sort in progress and delete that note (Undo brings it back and re-sorts)
 let pendingBlobDel=null;
 function cancelNote(id){
@@ -918,8 +1050,8 @@ async function addItems(list){
   toast(failed.length?`Added ${ok} of ${list.length}. ${failed.length} didn't go through. Try again.`:ok===1?`Added to ${where}`:`Added ${ok} events to ${where}`);
 }
 function markAdded(x,gid){
-  if(x.kind==="mail"){x.m.added=true;if(gid)x.m.gcalId=gid;return}
-  const o=x.kind==="task"?x.n.task:x.ev;o.added=true;if(gid)o.gcalId=gid;
+  if(x.kind==="mail"){x.m.added=true;if(gid){x.m.gcalId=gid;x.m.gcalCal=calTarget()}return}
+  const o=x.kind==="task"?x.n.task:x.ev;o.added=true;if(gid){o.gcalId=gid;o.gcalCal=calTarget()}
 }
 function persistAdded(list){
   const ns=new Set(list.filter(x=>x.n).map(x=>x.n));ns.forEach(n=>putNote(n));
@@ -990,10 +1122,11 @@ function openEdit(id){
   const n=S.notes.find(x=>x.id===id);if(!n)return;
   S.edit=JSON.parse(JSON.stringify(n));S.confirmDel=false;renderSheet();$("#sheet").hidden=false;
 }
-function closeSheet(){$("#sheet").hidden=true;S.edit=null;S.sheetMode=null;render()}
+function closeSheet(){$("#sheet").hidden=true;S.edit=null;S.sheetMode=null;S.rm=null;render()}
 function renderSheet(){
   if(S.sheetMode==="settings")return renderSettings();
   if(S.sheetMode==="catpick")return renderCatPick();
+  if(S.sheetMode==="rmask")return renderRmAsk();
   const e=S.edit;if(!e)return;
   const cats=getCats();
   $("#sheet").innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Edit note">
@@ -1126,6 +1259,7 @@ async function weekLoad(force){
   if(!gcOn())return;
   if(!gcTok()){if(force)gcAuth(!lsGet("gcal_need",false));return}
   await Promise.all([weekLoadCal(force),weekMail(force)]);
+  await calTasksMaybe(force);
   briefMaybe();
 }
 function weekRefresh(){if(!gcTok())gcAuth(!lsGet("gcal_need",false));else weekLoad(true)}
@@ -1211,7 +1345,7 @@ function remItems(){
   return out;
 }
 function weekModel(){
-  const days=[],rem=remItems(),cal=W.cal.items||[],end7=ymd(addDays(6)),end30=ymd(addDays(30));
+  const hid=new Set(lsGet("cal_hidden",[])),days=[],rem=remItems(),cal=(W.cal.items||[]).filter(c=>!hid.has(calKeyOf(c))),end7=ymd(addDays(6)),end30=ymd(addDays(30));
   let known=0;const later=[],nodate=[];
   const mail=(W.mail.items||[]).map((m,i)=>({...m,i})).filter(m=>!m.hidden);
   const onCal=m=>cal.some(c=>sameThing(m,c)),inRem=m=>rem.some(r=>sameThing(m,r));
@@ -1223,7 +1357,7 @@ function weekModel(){
   for(let k=0;k<7;k++){const d=ymd(addDays(k)),rows=[];
     const r=rem.filter(x=>x.date===d);
     r.forEach(x=>rows.push({src:x.kind,x}));
-    cal.filter(c=>c.date===d&&!r.some(x=>sameThing(x,c))).forEach(c=>rows.push({src:"cal",x:c}));
+    cal.filter(c=>c.date===d&&!r.some(x=>x.kind==="rem"&&sameThing(x,c))).forEach(c=>rows.push({src:"cal",x:c}));
     mail.filter(m=>m.date===d&&!m.saved&&!onCal(m)&&!inRem(m)).forEach(m=>rows.push({src:"mail",x:m}));
     rows.sort((a,b)=>(a.x.start||"00:00")<(b.x.start||"00:00")?-1:(a.x.start||"")>(b.x.start||"")?1:0);
     days.push({d,rows});
@@ -1251,7 +1385,7 @@ function wkRowHTML(row){
   if(row.src==="mail")return `<div class="wk mail"><div class="tm">${x.date?esc(x.kind==="todo"&&!x.start?"Due":tLabel(x)):"Anytime"}</div>
     <div class="info"><b>${esc(x.title)}</b>${x.details?`<span>${esc(x.details)}</span>`:""}${todoLine(x.todo,x.date)}<span class="src">${kb}${srcTag("gmail",x.subject||x.from||"",mailLink(x))}<em>Not on your calendar</em></span>
       <div class="wkbtns">${MAILPICK.has(x.i)?`<button class="pk ${S.mailOff.has(x.i)?"":"on"}" data-act="mpick" data-v="${x.i}" role="checkbox" aria-checked="${!S.mailOff.has(x.i)}" aria-label="Include ${esc(x.title)}">${S.mailOff.has(x.i)?"":"✓"}</button>`:x.date?`<button class="add ${x.added?"done":""}" data-act="wkcal" data-v="${x.i}">${x.added?"Added ✓":"Add to cal"}</button>`:""}<button class="btn ghost" data-act="wksave" data-v="${x.i}">Save</button><button class="x" data-act="wkhide" data-v="${x.i}" aria-label="Hide this">✕</button></div></div></div>`;
-  if(row.src==="cal")return `<div class="wk cal"><div class="tm">${esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b>${row.full&&x.desc?`<span class="desc">${esc(x.desc.length>160?x.desc.slice(0,157)+"…":x.desc)}</span>`:""}<span class="src">${kb}${srcTag("cal",x.cal||"",x.link)}${x.location?`<span>${esc(x.location)}</span>`:""}</span></div></div>`;
+  if(row.src==="cal")return `<div class="wk cal"><div class="tm">${esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b>${row.full&&x.desc?`<span class="desc">${esc(x.desc.length>160?x.desc.slice(0,157)+"…":x.desc)}</span>`:""}<span class="src">${kb}${srcTag("cal",x.cal||"",x.link)}${x.location?`<span>${esc(x.location)}</span>`:""}</span></div><button class="x rmx" data-act="calrm" data-v="${esc(calKeyOf(x))}" aria-label="Remove ${esc(x.title)}">✕</button></div>`;
   const n=x.n,c=n.category,cat=`<span class="catl"><span class="dot" style="background:${catColor(c)}"></span>${esc(c||"Unsorted")}</span>`;
   if(row.src==="task"){const t=n.task;
     return `<div class="wk rem task"><div class="tm"><button class="tick" data-act="tdone" data-id="${n.id}" aria-label="Mark ${esc(t.title)} done"></button></div><div class="info"><b>${esc(x.title)}</b><span class="src">${kb}${noteTag(n)}${cat}${x.overdue?`<span class="over">Overdue</span>`:""}${t.who==="partner"?`<span>For ${esc(partnerName())}</span>`:""}</span></div><button class="x rmx" data-act="tdismiss" data-id="${n.id}" aria-label="Remove ${esc(t.title)}">✕</button></div>`}
@@ -1311,7 +1445,7 @@ function srcTag(k,extra,href){
   const inner=`<span aria-hidden="true">${i}</span>${esc(l)}${extra?`<span class="sx">· ${esc(extra)}</span>`:""}`;
   return href?`<a class="stag s-${k}" href="${esc(href)}" target="_blank" rel="noopener">${inner}</a>`:`<span class="stag s-${k}">${inner}</span>`;
 }
-function noteTag(n){const k=noteSrc(n);return k==="gmail"?srcTag("gmail","saved",n.msgId?mailLink({msgId:n.msgId}):""):srcTag(k)}
+function noteTag(n){const k=noteSrc(n);if(k==="cal")return srcTag("cal","to-do",n.calLink||"");return k==="gmail"?srcTag("gmail","saved",n.msgId?mailLink({msgId:n.msgId}):""):srcTag(k)}
 const aggView=()=>S.view==="week"||S.view==="today";
 
 /* ---------- kids: tags and filters ---------- */
@@ -1463,21 +1597,19 @@ function briefHTML(){
   return `<section class="brief"><h2>Heads up</h2><ul>${list.map(it=>`<li><span>${esc(it.text)}</span><span style="display:flex;gap:6px;flex-wrap:wrap">${it.kid?kidBadges([it.kid]):""}${(it.srcs||[]).map(s=>srcTag(s.k,s.extra,s.href)).join("")}</span></li>`).join("")}</ul></section>`;
 }
 function todayHTML(){
-  const h=new Date().getHours(),hi=h<12?"Good morning":h<17?"Good afternoon":"Good evening";
-  let html=`<div style="margin-top:18px"><h1 class="vh">${hi}</h1>
-    <p class="hint" style="margin-top:2px">${esc(new Date().toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"}))}. What to remember today and tomorrow.</p>`;
-  if(gcOn())html+=`<p class="hint calst">${syncLine()}</p>${W.err&&W.err!=="email"?`<div class="err">${esc(W.err)}</div>`:""}`;
-  html+=`</div>`+askHTML();
-  if(!gcOn())html+=`<div class="keycard"><h2>Connect Google</h2><p class="hint" style="margin-top:2px">Connect Google in Settings to see your calendar and email dates here.</p><button class="btn primary" data-act="settings" style="margin-top:10px;width:100%">Open Settings</button></div>`;
-  html+=kidChips();
+  let html=captureHTML()+kidChips()+todayTasksHTML();
+  html+=`<div class="tdyhead"><h2>Today &amp; tomorrow</h2><span>${esc(new Date().toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</span></div>`;
+  if(gcOn())html+=`<p class="hint calst" style="margin-top:0">${syncLine()}</p>${W.err&&W.err!=="email"?`<div class="err">${esc(W.err)}</div>`:""}`;
+  else html+=`<div class="keycard"><h2>Connect Google</h2><p class="hint" style="margin-top:2px">Connect Google in Settings to see your calendar and email dates here.</p><button class="btn primary" data-act="settings" style="margin-top:10px;width:100%">Open Settings</button></div>`;
   const eve=isEvening();
   html+=eve?prepHTML():briefHTML();
   const M=weekModel();
   html+=mailBarHTML(mailCands(kidFilter([...M.days[0].rows,...M.days[1].rows])));
-  (eve?[1,0]:[0,1]).forEach(k=>{const {d}=M.days[k],rows=kidFilter(M.days[k].rows);
+  (eve?[1,0]:[0,1]).forEach(k=>{const {d}=M.days[k],rows=kidFilter(M.days[k].rows.filter(r=>r.src!=="task"));
     html+=`<div class="day">${k?"Tomorrow":"Today"} · ${esc(parseYmd(d).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</div><article class="note wkday">${rows.length?rows.map(r=>wkRowHTML({...r,full:true})).join(""):`<p class="hint" style="margin:0">${S.kid==="all"?"Nothing scheduled":"Nothing for "+esc(S.kid)}</p>`}</article>`;
   });
   html+=dupHTML();
+  html+=`<div style="margin-top:18px">${askHTML()}</div>`;
   return html+`<button class="btn big" data-act="nav" data-v="week" style="margin-top:16px">See the whole week</button><div class="pad"></div>`;
 }
 
@@ -1664,7 +1796,7 @@ function notesHTML(){
   const counts={};S.notes.forEach(n=>{if(n.category&&!n.parent)counts[n.category]=(counts[n.category]||0)+1});
   const cats=getCats();
   const q=S.q.trim().toLowerCase();
-  const list=S.notes.filter(n=>!n.parent&&(S.filter==="All"||n.category===S.filter)&&(S.kid==="all"||noteKids(n).includes(S.kid))&&(!q||[n.text,n.title,n.summary,n.category,...(n.events||[]).map(e=>e.title+" "+e.location)].join(" ").toLowerCase().includes(q)));
+  const list=S.notes.filter(n=>!n.parent&&!n.fromCal&&(S.filter==="All"||n.category===S.filter)&&(S.kid==="all"||noteKids(n).includes(S.kid))&&(!q||[n.text,n.title,n.summary,n.category,...(n.events||[]).map(e=>e.title+" "+e.location)].join(" ").toLowerCase().includes(q)));
   let html=captureHTML();
   const due=dueTasks();
   if(due.length)html+=`<section class="duebox"><div class="duehead"><h2>To do</h2><span>${due.length} waiting</span></div>${due.map(n=>`<div class="duerow"><span class="dot" style="background:${catColor(n.category)}"></span>${taskHTML(n)}</div>`).join("")}</section>`;
@@ -1755,8 +1887,11 @@ document.addEventListener("click",e=>{
   else if(a==="sel"){S.sel.has(v)?S.sel.delete(v):S.sel.add(v);render()}
   else if(a==="selpartner"){S.notes.forEach(n=>{if(n.task&&n.task.who==="partner"&&taskState(n.task)!=="done")S.sel.add("t:"+n.id)});render()}
   else if(a==="selsend")selSend();
-  else if(a==="tdismiss")dismissItem(b.dataset.id,null);
-  else if(a==="evdismiss")dismissItem(b.dataset.id,v);
+  else if(a==="tdismiss")tryRemove(b.dataset.id,null);
+  else if(a==="evdismiss")tryRemove(b.dataset.id,v);
+  else if(a==="calrm")tryRemoveCal(v);
+  else if(a==="rmboth")rmDo(true);
+  else if(a==="rmlocal")rmDo(false);
   else if(a==="reopen"){const n=S.notes.find(x=>x.id===b.dataset.id);if(n&&n.task){n.task.doneAt=null;putNote(n);render()}}
   else if(a==="tcal")addTaskToCal(b.dataset.id);
   else if(a==="mktask"){S.edit.task=S.edit.task?null:{title:S.edit.title||"To-do",due:todayStr(),anchor:todayStr(),repeat:null,log:[],doneAt:null,added:false};renderSheet()}
@@ -1766,7 +1901,10 @@ document.addEventListener("click",e=>{
   else if(a==="editsave")saveEdit();
   else if(a==="evdel"){S.edit.events=S.edit.events.filter(x=>x.id!==b.dataset.id);renderSheet()}
   else if(a==="delask"){S.confirmDel=true;renderSheet()}
-  else if(a==="delnote"){const id=S.edit.id,n=S.notes.find(x=>x.id===id);if(ABORT[id])ABORT[id].abort();const kids=n?kidsOf(n):[];S.notes=S.notes.filter(x=>x.id!==id&&x.parent!==id);delNote(id);kids.forEach(c=>delNote(c.id));(n&&n.images||[]).forEach(delBlob);closeSheet();toast("Deleted")}
+  else if(a==="delnote"){const id=S.edit.id,n=S.notes.find(x=>x.id===id);
+    const gs=n&&gcOn()?[...(n.events||[]).map(ev=>linkedCal(ev,ev)),...[n,...kidsOf(n)].filter(c=>c.task).map(c=>linkedCal(c.task,{title:c.task.title,date:c.task.due,start:null}))].filter(Boolean):[];
+    if(gs.length){S.edit=null;askRemove({deleteNote:id,title:n.title||"This note",gcal:{...gs[0],rec:gs.some(g=>g.rec),edit:gs.some(g=>g.edit!==false)},gcals:gs});return}
+    deleteNoteNow(id);closeSheet();toast("Deleted")}
   else if(a==="settings")openSettings();
   else if(a==="savekey")saveKey();
   else if(a==="catpick"){e.stopPropagation();openCatPick(b.dataset.id)}
@@ -1838,6 +1976,7 @@ render();
   if(gcBack&&gcBack!=="ok")takePending();
   for(const n of S.notes.filter(x=>x.status==="unsorted"&&(!x.err||x.retry)))sortNote(n.id);
   if(gcBack===null){if(gcTok()){gcCheck(false);if(aggView())weekLoad(false)}else gcMaybeRefresh()}
+  calTasksMaybe(false);
   briefMaybe();
 })();
 // quietly retry notes that failed because Gemini was busy/offline
