@@ -159,6 +159,18 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 .wkbtns .add{border:0;border-radius:999px;padding:7px 12px;font-weight:700;font-size:13px;background:var(--accent);color:var(--accent-ink);min-height:34px}
 .wkbtns .add.done{background:var(--good-soft);color:var(--good)}
 .wkbtns .btn{min-height:34px;padding:4px 12px}
+.catbtn{border:0;cursor:pointer;font:inherit;display:inline-flex;align-items:center;gap:6px}
+.catbtn .caret{font-size:10px;opacity:.55;margin-left:-1px}
+.addcat{border-style:dashed!important;color:var(--ink-2)}
+.catgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:12px}
+.catopt{display:flex;align-items:center;gap:8px;border:1.5px solid var(--surface-2);background:var(--surface);border-radius:12px;padding:12px;font:inherit;font-weight:700;font-size:15px;color:var(--ink);cursor:pointer;text-align:left;min-height:48px}
+.catopt.on{border-color:var(--accent)}
+.catopt .ck{margin-left:auto;color:var(--accent)}
+.cathead{display:flex;align-items:center;gap:8px}.cathead .dot,.catopt .dot{width:10px;height:10px;border-radius:50%;flex:none}.cathead .inp{flex:1;min-width:0;margin:0}
+.catrow{padding:10px 0;border-top:1px solid var(--surface-2)}
+.catrow:first-of-type{border-top:0}
+.catdel{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:14px}
+.catdel select{min-height:36px}
 .wk>.rmx{flex:none;border:0;background:none;color:var(--ink-3);font-size:15px;min-width:34px;min-height:34px;margin:-6px -6px 0 0;cursor:pointer}
 .wkbtns .x{border:0;background:none;color:var(--ink-2);font-size:15px;min-width:34px;min-height:34px}
 .wkd{font-size:12px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.05em;margin-top:10px}
@@ -329,7 +341,55 @@ function setCats(c){lsSet("remembrd_cats",c)}
 function addCat(name){name=String(name||"").trim().replace(/\s+/g," ").slice(0,24);if(!name)return "Home";
   const c=getCats(),hit=c.find(x=>x.toLowerCase()===name.toLowerCase());if(hit)return hit;
   name=name.replace(/\b\w/g,m=>m.toUpperCase());c.push(name);setCats(c);return name}
-function catColor(name){if(CAT_COLORS[name])return CAT_COLORS[name];const c=getCats().filter(x=>!CAT_COLORS[x]),i=c.indexOf(name);return EXTRA_COLORS[(i<0?0:i)%EXTRA_COLORS.length]}
+function catColor(name){const cm=lsGet("cat_colors",{});if(cm&&cm[name])return cm[name];if(CAT_COLORS[name])return CAT_COLORS[name];const c=getCats().filter(x=>!CAT_COLORS[x]),i=c.indexOf(name);return EXTRA_COLORS[(i<0?0:i)%EXTRA_COLORS.length]}
+
+const cleanCat=v=>String(v||"").trim().replace(/\s+/g," ").slice(0,24).replace(/\b\w/g,m=>m.toUpperCase());
+function catDescs(){return lsGet("cat_desc",{})||{}}
+function catLessons(){const L=lsGet("cat_lessons",[]);return Array.isArray(L)?L:[]}
+function noteGist(n){return [n.title,n.text||n.summary].filter(Boolean).join(" — ").replace(/\s+/g," ").slice(0,160)}
+// remember how she sorts things so Gemini copies her, not its own guess
+function learnCat(n,from,to){
+  if(!to||from===to)return;const g=noteGist(n);if(!g)return;
+  const L=catLessons().filter(x=>x.t!==g);L.push({t:g,c:to,f:from||""});lsSet("cat_lessons",L.slice(-60));
+}
+function catGuide(){
+  const d=catDescs(),cats=getCats(),desc=cats.filter(c=>d[c]).map(c=>`- ${c}: ${d[c]}`);
+  const L=catLessons().filter(x=>cats.includes(x.c)).slice(-35);
+  let out="";
+  if(desc.length)out+=`\nWHAT GOES IN HER CATEGORIES (she wrote these; they outrank everything below):\n${desc.join("\n")}\n`;
+  if(L.length)out+=`\nHOW SHE SORTS (items she moved to the right category herself; when a new item is similar, use the category she chose):\n${L.map(x=>`- "${x.t}" → ${x.c}${x.f&&x.f!==x.c?` (not ${x.f})`:""}`).join("\n")}\n`;
+  return out;
+}
+const rootNote=n=>n&&n.parent&&S.notes.find(x=>x.id===n.parent)||n;
+async function setNoteCat(n,cat){
+  n=rootNote(n);if(!n||!cat)return;const from=n.category;
+  n.category=cat;n.catSet=true;learnCat(n,from,cat);
+  for(const c of kidsOf(n)){c.category=cat;await putNote(c)}
+  await putNote(n);
+}
+async function renameCat(old,nu){
+  nu=cleanCat(nu);if(!nu||nu===old)return old;
+  const cats=getCats(),other=cats.find(c=>c!==old&&c.toLowerCase()===nu.toLowerCase());
+  if(other)nu=other;
+  else{const cm=lsGet("cat_colors",{})||{};cm[nu]=catColor(old);lsSet("cat_colors",cm)}
+  setCats(other?cats.filter(c=>c!==old):cats.map(c=>c===old?nu:c));
+  const d=catDescs();if(d[old]&&!d[nu])d[nu]=d[old];delete d[old];lsSet("cat_desc",d);
+  lsSet("cat_lessons",catLessons().map(x=>({...x,c:x.c===old?nu:x.c,f:x.f===old?nu:x.f})));
+  for(const n of S.notes)if(n.category===old){n.category=nu;await putNote(n)}
+  let mc=false;(W.mail.items||[]).forEach(m=>{if(m.category===old){m.category=nu;mc=true}});if(mc)lsSet("week_mail",W.mail);
+  if(S.filter===old)S.filter=nu;
+  return nu;
+}
+async function deleteCat(c,moveTo){
+  const left=getCats().filter(x=>x!==c);if(!left.length)return;
+  moveTo=left.includes(moveTo)?moveTo:left[0];
+  setCats(left);
+  const d=catDescs();delete d[c];lsSet("cat_desc",d);
+  lsSet("cat_lessons",catLessons().filter(x=>x.c!==c));
+  for(const n of S.notes)if(n.category===c){n.category=moveTo;await putNote(n)}
+  if(S.filter===c)S.filter="All";
+}
+const catCount=c=>S.notes.filter(n=>!n.parent&&n.category===c).length;
 
 /* ---------- dates ---------- */
 const pad=n=>String(n).padStart(2,"0");
@@ -583,7 +643,7 @@ RIGHT NOW: ${nowContext()}.
 
 CATEGORIES (use one of these when it fits): ${JSON.stringify(getCats())}
 If none of them fits well, create ONE new short category (1-2 words, Title Case, general enough to reuse, like "Doctor", "Kids", "Finance", "Travel"). Prefer existing categories. Baseball covers games, practices, tournaments, team snacks and fees. Church covers services, small groups, volunteering and church events. "AEC", "Agriculture Education Committee" or "Ag Ed" is her rodeo committee (a volunteer group, not her job): always use "Rodeo" for it, never "Work".
-
+${catGuide()}
 NOTE TEXT: ${note.text?JSON.stringify(note.text):"(none, screenshot only)"}
 
 RULES:
@@ -649,7 +709,7 @@ async function sortNote(id,blobs){
     if(!blobs||!blobs.length)blobs=(await Promise.all((n.images||[]).map(getBlob))).filter(Boolean);
     const ctl=ABORT[id]=new AbortController();
     const r=await geminiJSON(buildPrompt(n,blobs.length>0),blobs,t=>setProg(id,t),ctl.signal);
-    n.category=addCat(r.category||"Home");
+    if(!n.catSet||!getCats().includes(n.category))n.category=addCat(r.category||"Home");
     n.title=String(r.title||"").slice(0,90);
     n.summary=blobs.length?String(r.summary||"").slice(0,800):"";
     n.events=(Array.isArray(r.events)?r.events:[]).filter(e=>e&&/^\d{4}-\d{2}-\d{2}$/.test(String(e.date))).slice(0,25).map(e=>({
@@ -933,6 +993,7 @@ function openEdit(id){
 function closeSheet(){$("#sheet").hidden=true;S.edit=null;S.sheetMode=null;render()}
 function renderSheet(){
   if(S.sheetMode==="settings")return renderSettings();
+  if(S.sheetMode==="catpick")return renderCatPick();
   const e=S.edit;if(!e)return;
   const cats=getCats();
   $("#sheet").innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Edit note">
@@ -941,6 +1002,7 @@ function renderSheet(){
     <span class="lbl">Category</span>
     <div class="row2"><select id="ecat">${cats.map(c=>`<option ${c===e.category?"selected":""}>${esc(c)}</option>`).join("")}<option value="__new">+ New category…</option></select>
     <input id="enewcat" class="inp" placeholder="New category name" hidden></div>
+    ${kidNames().length?`<span class="lbl">Who it's for</span><div class="chips" style="margin-top:0">${kidNames().map(k=>{const on=(e.kidsSet?e.kids||[]:noteKids(e)).includes(k);return `<button class="chip" data-act="ekid" data-v="${esc(k)}" aria-pressed="${on}"><span class="dot" style="background:${kidColor(k)}"></span>${esc(k)}</button>`}).join("")}</div><p class="hint">${e.kidsSet?"Set by you.":"Guessed from the note. Tap to fix."}</p>`:""}
     <span class="lbl">Title</span><input id="etitle" class="inp" value="${esc(e.title)}">
     <span class="lbl">Note</span><textarea id="etext">${esc(e.text||e.summary)}</textarea>
     <span class="lbl">To-do</span>
@@ -959,7 +1021,9 @@ function renderSheet(){
 async function saveEdit(){
   const e=S.edit,n=S.notes.find(x=>x.id===e.id);if(!n)return closeSheet();
   let cat=$("#ecat").value;if(cat==="__new")cat=addCat($("#enewcat").value||"Other");
-  n.category=cat;n.title=$("#etitle").value.trim();
+  n.title=$("#etitle").value.trim();
+  if(cat!==n.category)await setNoteCat(n,cat);
+  if(e.kidsSet){n.kids=(e.kids||[]).slice();n.kidsSet=true}
   const t=$("#etext").value;if(n.text||!n.summary)n.text=t;else n.summary=t;
   n.events=n.events.filter(x=>e.events.some(y=>y.id===x.id));
   if(e.task){const due=$("#edue").value||todayStr(),rep=$("#erep").value||null,old=n.task;
@@ -967,6 +1031,42 @@ async function saveEdit(){
     n.task={...(old||e.task),title:n.title||(old&&old.title)||"To-do",repeat:rep,due:changed?due:old.due,anchor:changed?due:old.anchor,doneAt:changed?null:(old&&old.doneAt)||null};
   }else n.task=null;
   await putNote(n);closeSheet();toast("Saved");
+}
+
+/* ---------- quick category picker ---------- */
+function openCatPick(id){S.pickId=id;S.sheetMode="catpick";S.catNew=false;renderSheet();$("#sheet").hidden=false}
+function renderCatPick(){
+  const n=rootNote(S.notes.find(x=>x.id===S.pickId));if(!n)return closeSheet();
+  $("#sheet").innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Change category">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2>Move to…</h2><button class="iconbtn" data-act="closesheet" aria-label="Close">✕</button></div>
+    <p class="hint" style="margin-top:2px">${esc(n.title||noteGist(n)||"This note")}</p>
+    <div class="catgrid">${getCats().map(c=>`<button class="catopt ${c===n.category?"on":""}" data-act="catset" data-v="${esc(c)}"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}${c===n.category?'<span class="ck">✓</span>':""}</button>`).join("")}</div>
+    ${S.catNew?`<div class="cathead" style="margin-top:12px"><input id="pnewcat" class="inp" placeholder="New category name" autocomplete="off"><button class="btn primary" data-act="catsetnew">Add</button></div>`
+      :`<button class="btn ghost" data-act="catnew" style="margin-top:12px">+ New category</button>`}
+    <p class="hint" style="margin-top:14px">remembrd learns from what you move, so similar notes land in the right place next time.</p></div>`;
+  if(S.catNew){const i=$("#pnewcat");i&&i.focus()}
+}
+async function pickCat(cat){
+  const n=S.notes.find(x=>x.id===S.pickId);if(!n||!cat)return;
+  const same=rootNote(n).category===cat;
+  await setNoteCat(n,cat);closeSheet();
+  if(!same)toast(`Moved to ${cat}. remembrd will remember.`);
+}
+function catManagerHTML(){
+  const cats=getCats(),d=catDescs(),L=catLessons().length;
+  return `<span class="lbl" id="catmgr">Categories</span>
+  <p class="hint" style="margin-top:0">Rename one by editing its name. "What goes here" helps remembrd sort new notes into it.</p>
+  ${cats.map(c=>{const n=catCount(c);return `<div class="catrow">
+    <div class="cathead"><span class="dot" style="background:${catColor(c)};flex:none"></span>
+      <input class="inp" data-catname="${esc(c)}" value="${esc(c)}" aria-label="Category name" autocomplete="off" style="font-weight:700">
+      <span class="hint" style="flex:none;margin:0">${n} note${n===1?"":"s"}</span>
+      ${cats.length>1?`<button class="btn ghost danger" data-act="catdelask" data-v="${esc(c)}" aria-label="Delete ${esc(c)}" style="flex:none;min-height:36px;padding:0 10px">✕</button>`:""}</div>
+    <input class="inp" data-catdesc="${esc(c)}" value="${esc(d[c]||"")}" placeholder="What goes here (optional)" autocomplete="off" style="margin-top:6px;font-size:14px">
+    ${S.catDel===c?`<div class="catdel">${n?`Move its ${n} note${n===1?"":"s"} to <select id="catmove">${cats.filter(x=>x!==c).map(x=>`<option>${esc(x)}</option>`).join("")}</select>`:"Delete this category?"}
+      <button class="btn danger solid" data-act="catdelgo" data-v="${esc(c)}">Delete</button><button class="btn ghost" data-act="catdelno">Cancel</button></div>`:""}
+  </div>`}).join("")}
+  <div class="cathead" style="margin-top:12px"><input id="newcatin" class="inp" placeholder="New category, like Robotics or Doctor" autocomplete="off"><button class="btn primary" data-act="catadd" style="flex:none">Add</button></div>
+  ${L?`<p class="hint">remembrd has learned from ${L} of your moves. <button class="linkbtn" data-act="catforget">Forget them</button></p>`:""}`;
 }
 
 /* ---------- settings ---------- */
@@ -996,7 +1096,7 @@ function renderSettings(){
   <span class="lbl">Your partner's name</span>
   <p class="hint" style="margin-top:0">Used when you assign to-dos to him.</p>
   <input id="partnerin" class="inp" type="text" autocomplete="off" placeholder="Name" value="${esc(partnerName()==="Partner"?"":partnerName())}" data-partner>
-  ${custom.length?`<span class="lbl">Categories remembrd added</span><div style="display:flex;flex-wrap:wrap;gap:6px">${custom.map(c=>`<span class="chip" style="min-height:34px"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}${S.notes.some(n=>n.category===c)?"":`<button class="btn ghost" data-act="catdel" data-v="${esc(c)}" style="min-height:26px;padding:0 4px" aria-label="Remove ${esc(c)}">✕</button>`}</span>`).join("")}</div><p class="hint">A category can be removed once no notes use it.</p>`:""}
+  ${catManagerHTML()}
   <p class="hint" style="margin-top:16px">Notes and screenshots are stored only on this phone. On Google's free tier, Google may use what you send to improve its products.</p></div>`;
 }
 async function saveKey(){
@@ -1081,6 +1181,7 @@ Below are recent emails for a busy working parent (kids' school room-parent emai
 Pull out every specific upcoming thing she needs to know or act on from today through ${ymd(addDays(30))}: events, deadlines, things to bring, send, sign or pay, and schedule changes. Skip newsletters, ads, receipts, past dates, and general info with nothing to do or attend.
 Room-parent emails often end with a "Key Dates" section; include those. Resolve words like "Friday" or "next week" relative to the date the email was sent. One item per distinct thing; if several emails mention the same event, list it once.
 Return JSON: {"items":[{"msg":<email number>,"title":"short title that makes sense on a calendar by itself","date":"YYYY-MM-DD, or null if there is truly no date","start":"HH:MM 24-hour or null","end":"HH:MM or null","location":"","details":"one short sentence: what to do, bring or know","kind":"event" or "todo","todo":for an event that comes with something she must do for it (bring, donate, pay, buy, sign, send, wear, RSVP, sign up), {"title":"short imperative naming who or what it's for","due":"YYYY-MM-DD deadline if stated, else the event date"}, otherwise null,"category":"one of ${getCats().join(", ")}, or a short new category"}]}
+${catGuide()}
 If nothing qualifies, return {"items":[]}.
 
 ${mails.map((m,i)=>`=== EMAIL ${i+1}\nFrom: ${m.from}\nSent: ${m.date}\nSubject: ${m.subject}\n${m.body}`).join("\n\n")}`;
@@ -1231,12 +1332,22 @@ function kidsIn(text){const t=String(text||"");return kidNames().filter(k=>kidRe
 function kidsPrompt(){return kidNames().map(k=>{const c=kidClues(k);return c.length?`${k} (${c.join(", ")})`:k}).join("; ")}
 function rowKids(r){
   const x=r.x;let first="",second="";
+  if((r.src==="rem"||r.src==="task")&&x.n){const n=x.n,par=n.parent&&S.notes.find(p=>p.id===n.parent);if(n.kidsSet||par&&par.kidsSet)return noteKids(n)}
   if(r.src==="cal"){first=x.title+" "+(x.desc||"");second=[x.location,x.cal].join(" ")}
   else if(r.src==="mail"){first=[x.title,x.details,x.todo&&x.todo.title].join(" ");second=[x.subject,x.from,x.category].join(" ")}
   else if(r.src==="task"){const n=x.n,par=n.parent&&S.notes.find(p=>p.id===n.parent);first=n.task.title;second=[n.title,n.text,n.summary,par&&par.title,par&&par.text,n.category].join(" ")}
   else{first=[x.title,x.ev&&x.ev.details,x.location].join(" ");second=[x.n.title,x.n.text,x.n.summary,x.n.category].join(" ")}
   const k=kidsIn(first);return k.length?k:kidsIn(second);
 }
+function noteKids(n){
+  const ok=l=>(l||[]).filter(k=>kidNames().includes(k));
+  if(n.kidsSet)return ok(n.kids);
+  const par=n.parent&&S.notes.find(x=>x.id===n.parent);
+  if(par&&par.kidsSet)return ok(par.kids);
+  const k=kidsIn([n.title,n.task&&n.task.title,...(n.events||[]).map(e=>[e.title,e.details,e.location].join(" "))].join(" "));
+  return k.length?k:kidsIn([n.text,n.summary,par&&par.title,par&&par.text,par&&par.summary].join(" "));
+}
+function catPill(n){return `<button class="cat catbtn" data-act="catpick" data-id="${n.id}" aria-label="Category: ${esc(n.category||"Unsorted")}. Tap to change."><span class="dot" style="background:${catColor(n.category)}"></span>${esc(n.category||"Unsorted")}<span class="caret" aria-hidden="true">▾</span></button>`;}
 function kidBadges(list){return (list||[]).map(k=>`<span class="kidb" style="--kc:${kidColor(k)}">${esc(k)}</span>`).join("")}
 function kidFilter(rows){return S.kid==="all"?rows:rows.filter(r=>rowKids(r).includes(S.kid))}
 function kidChips(){
@@ -1259,7 +1370,7 @@ function prepItems(){
   for(const n of tasks){
     if(out.some(o=>o.task===n.id))continue;
     const par=n.parent&&S.notes.find(p=>p.id===n.parent);
-    out.push({key:"t:"+n.id,task:n.id,text:n.task.title,kid:kidsIn(n.task.title)[0]||kidsIn([n.title,n.text,par&&par.title,par&&par.text,n.category].join(" "))[0]||null,srcs:[{k:noteSrc(n),extra:"to-do",href:""}]});
+    out.push({key:"t:"+n.id,task:n.id,text:n.task.title,kid:noteKids(n)[0]||null,srcs:[{k:noteSrc(n),extra:"to-do",href:""}]});
   }
   const d=prepDone();
   out.forEach(o=>{const n=o.task&&S.notes.find(x=>x.id===o.task);o.done=n?!!n.task.doneAt:d.keys.includes(o.key)});
@@ -1511,8 +1622,8 @@ function captureHTML(){
 function noteHTML(n){
   const c=n.category;
   return `<article class="note">
-    <div class="nhead">${n.status==="sorting"?`<span class="sorting"><span class="spinner"></span>Sorting</span>`:c?`<span class="cat"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}</span>`:`<span class="cat">Unsorted</span>`}
-      ${n.status==="sorting"?"":noteTag(n)}<span class="t">${esc(fmtTime(n.createdAt))}</span></div>
+    <div class="nhead">${n.status==="sorting"?`<span class="sorting"><span class="spinner"></span>Sorting</span>`:catPill(n)}
+      ${n.status==="sorting"?"":kidBadges(noteKids(n))+noteTag(n)}<span class="t">${esc(fmtTime(n.createdAt))}</span></div>
     ${n.title?`<h3>${esc(n.title)}</h3>`:""}
     ${n.status==="sorting"?progHTML(n.id):""}
     ${n.text?`<div class="ntext">${esc(n.text)}</div>`:""}
@@ -1553,14 +1664,14 @@ function notesHTML(){
   const counts={};S.notes.forEach(n=>{if(n.category&&!n.parent)counts[n.category]=(counts[n.category]||0)+1});
   const cats=getCats();
   const q=S.q.trim().toLowerCase();
-  const list=S.notes.filter(n=>!n.parent&&(S.filter==="All"||n.category===S.filter)&&(!q||[n.text,n.title,n.summary,n.category,...(n.events||[]).map(e=>e.title+" "+e.location)].join(" ").toLowerCase().includes(q)));
+  const list=S.notes.filter(n=>!n.parent&&(S.filter==="All"||n.category===S.filter)&&(S.kid==="all"||noteKids(n).includes(S.kid))&&(!q||[n.text,n.title,n.summary,n.category,...(n.events||[]).map(e=>e.title+" "+e.location)].join(" ").toLowerCase().includes(q)));
   let html=captureHTML();
   const due=dueTasks();
   if(due.length)html+=`<section class="duebox"><div class="duehead"><h2>To do</h2><span>${due.length} waiting</span></div>${due.map(n=>`<div class="duerow"><span class="dot" style="background:${catColor(n.category)}"></span>${taskHTML(n)}</div>`).join("")}</section>`;
   if(S.notes.length){
     html+=`<label class="search">${icon.search}<input id="q" type="search" placeholder="Search notes" value="${esc(S.q)}" autocomplete="off"></label>
     <div class="chips"><button class="chip" data-act="filter" data-v="All" aria-pressed="${S.filter==="All"}">All <span class="n">${S.notes.filter(n=>!n.parent).length}</span></button>
-    ${cats.map(c=>`<button class="chip" data-act="filter" data-v="${esc(c)}" aria-pressed="${S.filter===c}"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}${counts[c]?` <span class="n">${counts[c]}</span>`:""}</button>`).join("")}</div>`;
+    ${cats.map(c=>`<button class="chip" data-act="filter" data-v="${esc(c)}" aria-pressed="${S.filter===c}"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}${counts[c]?` <span class="n">${counts[c]}</span>`:""}</button>`).join("")}<button class="chip addcat" data-act="catmanage" aria-label="Add or edit categories">+ Category</button></div>`+kidChips();
   }
   if(!S.notes.length)html+=`<div class="empty"><h2>Nothing yet</h2>Type a quick note, or add a screenshot of a flyer, text or schedule. remembrd timestamps it, sorts it into a category, and pulls out any dates for your calendar.</div>`;
   else if(!list.length)html+=`<div class="empty">No notes match.</div>`;
@@ -1568,11 +1679,11 @@ function notesHTML(){
   return html+`<div class="pad"></div>`;
 }
 function todoHTML(){
-  const mine=n=>S.who==="all"||(S.who==="partner")===(n.task.who==="partner");
+  const mine=n=>(S.who==="all"||(S.who==="partner")===(n.task.who==="partner"))&&(S.kid==="all"||noteKids(n).includes(S.kid));
   const all=S.notes.filter(n=>n.task&&mine(n)),now=dueTasks().filter(mine),later=all.filter(n=>taskState(n.task)==="later").sort((a,b)=>a.task.due<b.task.due?-1:1),
     done=all.filter(n=>taskState(n.task)==="done").sort((a,b)=>a.task.doneAt<b.task.doneAt?1:-1).slice(0,15);
-  const row=n=>{const last=(n.task.log||[]).slice(-1)[0],par=n.parent&&S.notes.find(x=>x.id===n.parent);return `<article class="note"><div class="nhead"><span class="cat"><span class="dot" style="background:${catColor(n.category)}"></span>${esc(n.category||"Unsorted")}</span>${noteTag(n)}${par&&par.title?`<span class="t" style="font-family:var(--body)">from ${esc(par.title.slice(0,40))}</span>`:""}${last&&n.task.repeat?`<span class="t">last done ${esc(new Date(last.doneAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}))}</span>`:""}</div>${taskHTML(n)}<div class="nfoot"><button class="btn ghost" data-act="edit" data-id="${n.id}">Edit</button></div></article>`};
-  let html=`<div style="margin-top:18px"><h1 style="font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em">To do</h1><p class="hint" style="margin-top:2px">To-dos stay at the top of Notes every day until you check them off. Tap Me or ${esc(partnerName())} on a to-do to reassign it.</p></div>`+selTools(true);
+  const row=n=>{const last=(n.task.log||[]).slice(-1)[0],par=n.parent&&S.notes.find(x=>x.id===n.parent);return `<article class="note"><div class="nhead">${catPill(n)}${kidBadges(noteKids(n))}${noteTag(n)}${par&&par.title?`<span class="t" style="font-family:var(--body)">from ${esc(par.title.slice(0,40))}</span>`:""}${last&&n.task.repeat?`<span class="t">last done ${esc(new Date(last.doneAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}))}</span>`:""}</div>${taskHTML(n)}<div class="nfoot"><button class="btn ghost" data-act="edit" data-id="${n.id}">Edit</button></div></article>`};
+  let html=`<div style="margin-top:18px"><h1 style="font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em">To do</h1><p class="hint" style="margin-top:2px">To-dos stay at the top of Notes every day until you check them off. Tap Me or ${esc(partnerName())} on a to-do to reassign it.</p></div>`+kidChips()+selTools(true);
   if(!all.length)return html+`<div class="empty"><h2>No to-dos yet</h2>Just type it like a note: "Give the dogs heartworm meds on the 15th of every month" or "Return library books Friday."</div>`;
   html+=`<div class="day">Due now</div>`+(now.length?now.map(row).join(""):`<div class="empty" style="margin-top:0">All caught up.</div>`);
   if(later.length)html+=`<div class="day">Coming up</div>`+later.map(row).join("");
@@ -1586,14 +1697,15 @@ function calStatusHTML(){
   const last=lsGet("gcal_last",0);
   return `<p class="hint calst">${last?"Checked against your calendar "+esc(fmtTime(new Date(last).toISOString())):"Not checked against your calendar yet"} · <button class="linkbtn" data-act="gccheck">Check now</button></p>`;
 }
+function upKids(n,ev){return rowKids({src:"rem",x:{n,ev,title:ev.title,location:ev.location}})}
 function upcomingHTML(){
-  const u=upcoming();
-  let html=`<div style="margin-top:18px"><h1 style="font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em">Upcoming</h1><p class="hint" style="margin-top:2px">Every date remembrd found, soonest first.</p>${calStatusHTML()}</div>`+selTools(false);
+  const u=upcoming().filter(({n,ev})=>S.kid==="all"||upKids(n,ev).includes(S.kid));
+  let html=`<div style="margin-top:18px"><h1 style="font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em">Upcoming</h1><p class="hint" style="margin-top:2px">Every date remembrd found, soonest first.</p>${calStatusHTML()}</div>`+kidChips()+selTools(false);
   if(!u.length)return html+`<div class="empty">No upcoming dates yet. Notes with a date or time will show up here.</div>`;
   let last="";
   for(const {n,ev,s} of u){const d=dayLabel(s.toISOString()).replace("Yesterday","");const lab=s.toDateString()===new Date().toDateString()?"Today":s.toLocaleDateString(undefined,{weekday:"long",month:"short",day:"numeric"});
     if(lab!==last){html+=`<div class="day">${esc(lab)}</div>`;last=lab}
-    html+=`<article class="note"><div class="nhead"><span class="cat"><span class="dot" style="background:${catColor(n.category)}"></span>${esc(n.category||"Unsorted")}</span></div>${evHTML(n,ev)}${ev.details?`<div class="ntext" style="margin-top:6px;font-size:14px">${esc(ev.details)}</div>`:""}</article>`}
+    html+=`<article class="note"><div class="nhead">${catPill(n)}${kidBadges(upKids(n,ev))}</div>${evHTML(n,ev)}${ev.details?`<div class="ntext" style="margin-top:6px;font-size:14px">${esc(ev.details)}</div>`:""}</article>`}
   return html+`<div class="pad"></div>`;
 }
 
@@ -1657,7 +1769,17 @@ document.addEventListener("click",e=>{
   else if(a==="delnote"){const id=S.edit.id,n=S.notes.find(x=>x.id===id);if(ABORT[id])ABORT[id].abort();const kids=n?kidsOf(n):[];S.notes=S.notes.filter(x=>x.id!==id&&x.parent!==id);delNote(id);kids.forEach(c=>delNote(c.id));(n&&n.images||[]).forEach(delBlob);closeSheet();toast("Deleted")}
   else if(a==="settings")openSettings();
   else if(a==="savekey")saveKey();
-  else if(a==="catdel"){setCats(getCats().filter(c=>c!==v));if(S.filter===v)S.filter="All";renderSettings()}
+  else if(a==="catpick"){e.stopPropagation();openCatPick(b.dataset.id)}
+  else if(a==="catset")pickCat(v);
+  else if(a==="catnew"){S.catNew=true;renderCatPick()}
+  else if(a==="catsetnew"){const nm=cleanCat($("#pnewcat").value);if(nm)pickCat(addCat(nm))}
+  else if(a==="catmanage"){openSettings();setTimeout(()=>{const el=document.getElementById("catmgr");el&&el.scrollIntoView({block:"start"});const i=$("#newcatin");i&&i.focus({preventScroll:true})},60)}
+  else if(a==="catadd"){const nm=cleanCat($("#newcatin").value);if(!nm)return;addCat(nm);renderSettings();toast(`Added ${nm}`)}
+  else if(a==="catdelask"){S.catDel=v;renderSettings()}
+  else if(a==="catdelno"){S.catDel=null;renderSettings()}
+  else if(a==="catdelgo"){const mv=$("#catmove");deleteCat(v,mv&&mv.value).then(()=>{S.catDel=null;renderSettings();toast(`Deleted ${v}`)})}
+  else if(a==="catforget"){lsSet("cat_lessons",[]);renderSettings();toast("Forgot what it learned")}
+  else if(a==="ekid"){const e2=S.edit;if(!e2)return;const cur=e2.kidsSet?(e2.kids||[]).slice():noteKids(e2);e2.kids=cur.includes(v)?cur.filter(k=>k!==v):cur.concat(v);e2.kidsSet=true;renderSheet()}
   else if(a==="lb"){const lb=$("#lb");lb.innerHTML=`<button data-act="lbclose" aria-label="Close">✕</button><img src="${blobUrl(v)}" alt="">`;lb.hidden=false}
   else if(a==="lbclose")$("#lb").hidden=true;
 });
@@ -1676,11 +1798,16 @@ document.addEventListener("change",async e=>{
     for(const f of files){const blob=await prepareImage(f);S.shots.push({blob,url:URL.createObjectURL(blob),cam:t.id==="camin"})}render();const c=$("#cap");c&&c.focus()}
   else if(t.id==="kidsin"&&S.sheetMode==="settings")renderSettings();
   else if(t.matches&&t.matches("[data-caltarget]")){lsSet("cal_target",t.value);render()}
+  else if(t.dataset&&t.dataset.catname!=null){const old=t.dataset.catname;renameCat(old,t.value).then(nu=>{if(nu!==old)toast(`Renamed to ${nu}`);renderSettings()})}
+  else if(t.dataset&&t.dataset.catdesc!=null){const d=catDescs(),v=t.value.trim().slice(0,140);if(v)d[t.dataset.catdesc]=v;else delete d[t.dataset.catdesc];lsSet("cat_desc",d)}
   else if(t.id==="ecat"){$("#enewcat").hidden=t.value!=="__new";if(t.value==="__new")$("#enewcat").focus()}
 });
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"){$("#lb").hidden=true;if(!$("#sheet").hidden)closeSheet()}
   if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)&&e.target.id==="cap")saveNote();
+  if(e.key==="Enter"&&e.target.id==="newcatin"){e.preventDefault();const b=document.querySelector("[data-act=catadd]");b&&b.click()}
+  if(e.key==="Enter"&&e.target.id==="pnewcat"){e.preventDefault();const b=document.querySelector("[data-act=catsetnew]");b&&b.click()}
+  if(e.key==="Enter"&&e.target.dataset&&(e.target.dataset.catname!=null||e.target.dataset.catdesc!=null)){e.preventDefault();e.target.blur()}
 });
 document.addEventListener("submit",e=>{if(e.target.id==="askf"){e.preventDefault();const i=$("#askin");if(i){A.q=i.value;i.blur()}askRun()}});
 $("#sheet").addEventListener("click",e=>{if(e.target.id==="sheet")closeSheet()});
