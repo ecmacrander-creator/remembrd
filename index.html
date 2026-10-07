@@ -212,6 +212,23 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spinner{animation-duration:3s}}
 .pad{height:48px}
+.kidb{display:inline-flex;align-items:center;font-size:11.5px;font-weight:800;border-radius:6px;padding:1px 7px;color:var(--kc);background:color-mix(in srgb,var(--kc) 15%,transparent);white-space:nowrap;line-height:1.6}
+.wk .info .kidb{display:inline-flex;margin-top:0;font-size:11.5px;color:var(--kc)}
+.kidchips{margin-top:12px}
+.prep{margin-top:14px;background:var(--surface);border:1.5px solid var(--accent);border-radius:var(--r);padding:13px 15px;box-shadow:var(--shadow)}
+.prephead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.prephead h2{font-size:18px;font-weight:800}
+.prephead span{font-size:13px;color:var(--ink-3);font-weight:600}
+.pgrp{margin-top:12px}
+.pgrp>.kidb{margin-bottom:4px}
+.pgrp .gl{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);font-weight:700;margin-bottom:4px}
+.pitem{display:flex;gap:10px;align-items:flex-start;padding:7px 0}
+.pitem .info{flex:1;min-width:0}
+.pitem .info b{display:block;font-size:15px;font-weight:600;line-height:1.35}
+.pitem.done .info b{text-decoration:line-through;color:var(--ink-3)}
+.pitem .info .stag{margin-top:3px}
+.prepfoot{display:flex;gap:8px;margin-top:10px;align-items:center}
+.prepfoot .btn{flex:1}
 .wk .info .todoline{color:var(--accent);font-weight:600;font-size:13px}
 .pk{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--accent);background:var(--surface);color:var(--accent-ink);font-weight:800;font-size:14px;display:grid;place-items:center;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .pk.on{background:var(--accent)}
@@ -288,7 +305,7 @@ const EXTRA_COLORS=["#E0702C","#5A9A3A","#C2478E","#3E8FB0","#8C6A3F","#6A7A92",
 const TZ=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||"America/Chicago"}catch(e){return "America/Chicago"}})();
 
 /* ---------- state ---------- */
-const S={pickOff:new Set(),pickOn:new Set(),mailOff:new Set(),notes:[],ready:false,view:"notes",filter:"All",q:"",draft:"",shots:[],busy:{},edit:null,confirmDel:false,db:null,sel:null,who:"all"};
+const S={kid:"all",pickOff:new Set(),pickOn:new Set(),mailOff:new Set(),notes:[],ready:false,view:"notes",filter:"All",q:"",draft:"",shots:[],busy:{},edit:null,confirmDel:false,db:null,sel:null,who:"all"};
 function partnerName(){try{return (localStorage.getItem("partner_name")||"").trim()||"Partner"}catch(e){return "Partner"}}
 const whoName=t=>t&&t.who==="partner"?partnerName():"Me";
 
@@ -970,6 +987,9 @@ function renderSettings(){
     <div class="sheetfoot" style="margin-top:8px">${lsGet("gcal_need",false)?`<button class="btn primary" data-act="gcauth">Reconnect</button>`:`<button class="btn" data-act="gccheck">Check now</button>`}<button class="btn ghost danger" data-act="gcoff">Disconnect</button></div>`
   :`<p class="hint" style="margin-top:6px">You'll sign in with Google and approve read-only access. Google may warn that the app isn't verified. Tap <b>Advanced</b>, then <b>Go to remembrd</b>.</p>
     <button class="btn primary big" data-act="gcconnect" style="margin-top:10px">Connect Google</button>`}
+  <span class="lbl">Kids' names</span>
+  <p class="hint" style="margin-top:0">Used to tag items and filter by kid. Separate with commas.</p>
+  <input id="kidsin" class="inp" type="text" autocomplete="off" placeholder="Emmett, Arthur" value="${esc(kidNames().join(", "))}">
   <span class="lbl">Your partner's name</span>
   <p class="hint" style="margin-top:0">Used when you assign to-dos to him.</p>
   <input id="partnerin" class="inp" type="text" autocomplete="off" placeholder="Name" value="${esc(partnerName()==="Partner"?"":partnerName())}" data-partner>
@@ -1123,15 +1143,15 @@ function remTodoLine(n,x){
   return t?`<span class="todoline">☐ To do: ${esc(t.task.title)}</span>`:"";
 }
 function wkRowHTML(row){
-  const x=row.x;
+  const x=row.x,kb=kidBadges(rowKids(row));
   if(row.src==="mail")return `<div class="wk mail"><div class="tm">${x.date?esc(x.kind==="todo"&&!x.start?"Due":tLabel(x)):"Anytime"}</div>
-    <div class="info"><b>${esc(x.title)}</b>${x.details?`<span>${esc(x.details)}</span>`:""}${todoLine(x.todo,x.date)}<span class="src">${srcTag("gmail",x.subject||x.from||"",mailLink(x))}<em>Not on your calendar</em></span>
+    <div class="info"><b>${esc(x.title)}</b>${x.details?`<span>${esc(x.details)}</span>`:""}${todoLine(x.todo,x.date)}<span class="src">${kb}${srcTag("gmail",x.subject||x.from||"",mailLink(x))}<em>Not on your calendar</em></span>
       <div class="wkbtns">${MAILPICK.has(x.i)?`<button class="pk ${S.mailOff.has(x.i)?"":"on"}" data-act="mpick" data-v="${x.i}" role="checkbox" aria-checked="${!S.mailOff.has(x.i)}" aria-label="Include ${esc(x.title)}">${S.mailOff.has(x.i)?"":"✓"}</button>`:x.date?`<button class="add ${x.added?"done":""}" data-act="wkcal" data-v="${x.i}">${x.added?"Added ✓":"Add to cal"}</button>`:""}<button class="btn ghost" data-act="wksave" data-v="${x.i}">Save</button><button class="x" data-act="wkhide" data-v="${x.i}" aria-label="Hide this">✕</button></div></div></div>`;
-  if(row.src==="cal")return `<div class="wk cal"><div class="tm">${esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b>${row.full&&x.desc?`<span class="desc">${esc(x.desc.length>160?x.desc.slice(0,157)+"…":x.desc)}</span>`:""}<span class="src">${srcTag("cal",x.cal||"",x.link)}${x.location?`<span>${esc(x.location)}</span>`:""}</span></div></div>`;
+  if(row.src==="cal")return `<div class="wk cal"><div class="tm">${esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b>${row.full&&x.desc?`<span class="desc">${esc(x.desc.length>160?x.desc.slice(0,157)+"…":x.desc)}</span>`:""}<span class="src">${kb}${srcTag("cal",x.cal||"",x.link)}${x.location?`<span>${esc(x.location)}</span>`:""}</span></div></div>`;
   const n=x.n,c=n.category,cat=`<span class="catl"><span class="dot" style="background:${catColor(c)}"></span>${esc(c||"Unsorted")}</span>`;
   if(row.src==="task"){const t=n.task;
-    return `<div class="wk rem task"><div class="tm"><button class="tick" data-act="tdone" data-id="${n.id}" aria-label="Mark ${esc(t.title)} done"></button></div><div class="info"><b>${esc(x.title)}</b><span class="src">${noteTag(n)}${cat}${x.overdue?`<span class="over">Overdue</span>`:""}${t.who==="partner"?`<span>For ${esc(partnerName())}</span>`:""}</span></div></div>`}
-  return `<div class="wk rem"><div class="tm">${esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b>${remTodoLine(n,x)}${row.full&&x.ev&&x.ev.details?`<span class="desc">${esc(x.ev.details)}</span>`:""}<span class="src">${noteTag(n)}${cat}${x.location?`<span>${esc(x.location)}</span>`:""}${x.added?"<span>On cal ✓</span>":""}</span></div></div>`;
+    return `<div class="wk rem task"><div class="tm"><button class="tick" data-act="tdone" data-id="${n.id}" aria-label="Mark ${esc(t.title)} done"></button></div><div class="info"><b>${esc(x.title)}</b><span class="src">${kb}${noteTag(n)}${cat}${x.overdue?`<span class="over">Overdue</span>`:""}${t.who==="partner"?`<span>For ${esc(partnerName())}</span>`:""}</span></div></div>`}
+  return `<div class="wk rem"><div class="tm">${esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b>${remTodoLine(n,x)}${row.full&&x.ev&&x.ev.details?`<span class="desc">${esc(x.ev.details)}</span>`:""}<span class="src">${kb}${noteTag(n)}${cat}${x.location?`<span>${esc(x.location)}</span>`:""}${x.added?"<span>On cal ✓</span>":""}</span></div></div>`;
 }
 function weekHTML(){
   const head=`<div style="margin-top:18px"><h1 style="font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em">This week</h1>
@@ -1145,15 +1165,18 @@ function weekHTML(){
   if(W.err==="email"||!hasGmail())note=`<div class="err">Email access isn't turned on. <button class="linkbtn" data-act="gcauth">Allow email access</button></div>`;
   else if(W.err)note=`<div class="err">${esc(W.err)}</div>`;
   else if(!getKey())note=`<p class="hint">Add your Gemini key in Settings to pull dates from your email.</p>`;
-  return head+`<p class="hint calst">${st}</p>${note}</div>`+weekBody();
+  return head+`<p class="hint calst">${st}</p>${note}</div>`+kidChips()+weekBody();
 }
 function weekBody(){
-  const M=weekModel();let html=mailBarHTML(mailCands([...M.days.flatMap(d=>d.rows),...(W.later?M.later.map(x=>({src:"mail",x})):[])]));
+  const M=weekModel();
+  M.days.forEach(d=>d.rows=kidFilter(d.rows));
+  M.later=kidFilter(M.later.map(x=>({src:"mail",x}))).map(r=>r.x);M.nodate=kidFilter(M.nodate.map(x=>({src:"mail",x}))).map(r=>r.x);
+  let html=mailBarHTML(mailCands([...M.days.flatMap(d=>d.rows),...(W.later?M.later.map(x=>({src:"mail",x})):[])]));
   const today=todayStr(),tm=ymd(addDays(1));
   if(M.nodate.length)html+=`<div class="day">From email · no date</div><article class="note">${M.nodate.map(x=>wkRowHTML({src:"mail",x})).join("")}</article>`;
   for(const {d,rows} of M.days){
     const lab=d===today?"Today":d===tm?"Tomorrow":parseYmd(d).toLocaleDateString(undefined,{weekday:"long",month:"short",day:"numeric"});
-    html+=`<div class="day">${esc(lab)}</div><article class="note wkday">${rows.length?rows.map(wkRowHTML).join(""):`<p class="hint" style="margin:0">Nothing scheduled</p>`}</article>`;
+    html+=`<div class="day">${esc(lab)}</div><article class="note wkday">${rows.length?rows.map(wkRowHTML).join(""):`<p class="hint" style="margin:0">${S.kid==="all"?"Nothing scheduled":"Nothing for "+esc(S.kid)}</p>`}</article>`;
   }
   if(M.later.length)html+=`<button class="day linkday" data-act="wkshowlater">From email · later this month (${M.later.length}) ${W.later?"▴":"▾"}</button>`+(W.later?`<article class="note">${M.later.map(x=>`<div class="wkd">${esc(parseYmd(x.date).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</div>`+wkRowHTML({src:"mail",x})).join("")}</article>`:"");
   if(M.known)html+=`<p class="hint" style="margin-top:14px;text-align:center">${M.known} email date${M.known===1?" is":"s are"} already on your calendar or in remembrd, so ${M.known===1?"it's":"they're"} not repeated here.</p>`;
@@ -1187,6 +1210,71 @@ function srcTag(k,extra,href){
 function noteTag(n){const k=noteSrc(n);return k==="gmail"?srcTag("gmail","saved",n.msgId?mailLink({msgId:n.msgId}):""):srcTag(k)}
 const aggView=()=>S.view==="week"||S.view==="today";
 
+/* ---------- kids: tags and filters ---------- */
+function kidNames(){const v=lsGet("kids",null);return Array.isArray(v)?v.filter(Boolean):["Emmett","Arthur"]}
+const KID_COLORS=["#2F7FC1","#2E9B5F","#C2478E","#E0702C","#7B5CC4"];
+function kidColor(k){const i=kidNames().indexOf(k);return KID_COLORS[(i<0?0:i)%KID_COLORS.length]}
+function kidsIn(text){const t=String(text||"");return kidNames().filter(k=>new RegExp("\\b"+k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b","i").test(t))}
+function rowKids(r){
+  const x=r.x;let first="",second="";
+  if(r.src==="cal")first=x.title+" "+(x.desc||"");
+  else if(r.src==="mail"){first=[x.title,x.details,x.todo&&x.todo.title].join(" ");second=x.subject}
+  else if(r.src==="task"){const n=x.n,par=n.parent&&S.notes.find(p=>p.id===n.parent);first=n.task.title;second=[n.title,n.text,n.summary,par&&par.title,par&&par.text].join(" ")}
+  else{first=[x.title,x.ev&&x.ev.details].join(" ");second=[x.n.title,x.n.text,x.n.summary].join(" ")}
+  const k=kidsIn(first);return k.length?k:kidsIn(second);
+}
+function kidBadges(list){return (list||[]).map(k=>`<span class="kidb" style="--kc:${kidColor(k)}">${esc(k)}</span>`).join("")}
+function kidFilter(rows){return S.kid==="all"?rows:rows.filter(r=>rowKids(r).includes(S.kid))}
+function kidChips(){
+  const ks=kidNames();if(!ks.length)return "";
+  return `<div class="chips kidchips"><button class="chip" data-act="kidf" data-v="all" aria-pressed="${S.kid==="all"}">Everyone</button>${ks.map(k=>`<button class="chip" data-act="kidf" data-v="${esc(k)}" aria-pressed="${S.kid===k}"><span class="dot" style="background:${kidColor(k)}"></span>${esc(k)}</button>`).join("")}</div>`;
+}
+
+/* ---------- night before: tomorrow morning checklist ---------- */
+const isEvening=()=>new Date().getHours()>=17;
+function prepDone(){const tm=ymd(addDays(1)),v=lsGet("prep_done",null);return v&&v.date===tm?v:{date:tm,keys:[]}}
+function prepItems(){
+  const tm=ymd(addDays(1)),out=[];
+  const tasks=S.notes.filter(n=>n.task&&n.task.due===tm);
+  const b=T.brief&&T.brief.items||[];
+  for(const it of b.filter(i=>i.day==="tomorrow")){
+    const text=it.text.replace(/^tomorrow[:,]?\s*/i,"").replace(/^./,c=>c.toUpperCase());
+    const tk=tasks.find(n=>titleMatch(n.task.title,text));
+    out.push({key:"b:"+text.toLowerCase().slice(0,60),text,kid:it.kid||kidsIn(text)[0]||null,srcs:it.srcs||[],task:tk?tk.id:null});
+  }
+  for(const n of tasks){
+    if(out.some(o=>o.task===n.id))continue;
+    const par=n.parent&&S.notes.find(p=>p.id===n.parent);
+    out.push({key:"t:"+n.id,task:n.id,text:n.task.title,kid:kidsIn(n.task.title)[0]||kidsIn([n.title,n.text,par&&par.title,par&&par.text].join(" "))[0]||null,srcs:[{k:noteSrc(n),extra:"to-do",href:""}]});
+  }
+  const d=prepDone();
+  out.forEach(o=>{const n=o.task&&S.notes.find(x=>x.id===o.task);o.done=n?!!n.task.doneAt:d.keys.includes(o.key)});
+  return out;
+}
+function prepHTML(){
+  const tm=addDays(1),all=prepItems(),items=S.kid==="all"?all:all.filter(o=>o.kid===S.kid);
+  let h=`<section class="prep"><div class="prephead"><h2>Tomorrow morning</h2><span>${esc(tm.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</span></div>`;
+  if(T.busy&&!all.length)return h+`<p class="hint"><span class="spinner"></span> Checking what needs to go out the door…</p></section>`;
+  if(!items.length)return h+`<p class="hint" style="margin-top:4px">${S.kid==="all"?"Nothing to pack, wear or sign for tomorrow.":"Nothing for "+esc(S.kid)+" tomorrow."}${getKey()?"":" Add your Gemini key in Settings to pull these from email and events."}</p></section>`;
+  const groups=[...kidNames().map(k=>[k,items.filter(o=>o.kid===k)]),[null,items.filter(o=>!o.kid||!kidNames().includes(o.kid))]].filter(g=>g[1].length);
+  h+=groups.map(([k,list])=>`<div class="pgrp">${k?kidBadges([k]):groups.length>1?`<div class="gl">Everyone</div>`:""}${list.map(o=>`<div class="pitem ${o.done?"done":""}"><button class="pk ${o.done?"on":""}" data-act="prepchk" data-v="${esc(o.key)}" role="checkbox" aria-checked="${o.done}" aria-label="${esc(o.text)}">${o.done?"✓":""}</button><div class="info"><b>${esc(o.text)}</b>${(o.srcs||[]).slice(0,1).map(s=>srcTag(s.k,s.extra,s.href)).join("")}</div></div>`).join("")}</div>`).join("");
+  const left=items.filter(o=>!o.done).length;
+  return h+`<div class="prepfoot"><button class="btn" data-act="prepsend" ${left?"":"disabled"}>Send to ${esc(partnerName())}</button></div></section>`;
+}
+async function prepCheck(key){
+  const o=prepItems().find(i=>i.key===key);if(!o)return;
+  if(o.task){const n=S.notes.find(x=>x.id===o.task);if(!n||!n.task)return;
+    if(n.task.doneAt){n.task.doneAt=null;await putNote(n);render()}else await completeTask(n.id);return}
+  const d=prepDone();d.keys=d.keys.includes(key)?d.keys.filter(k=>k!==key):d.keys.concat(key);lsSet("prep_done",d);render();
+}
+async function prepSend(){
+  const items=prepItems().filter(o=>!o.done&&(S.kid==="all"||o.kid===S.kid));if(!items.length)return;
+  const when=addDays(1).toLocaleDateString(undefined,{weekday:"long",month:"short",day:"numeric"});
+  const text=`For tomorrow morning (${when}):\n`+items.map(o=>"• "+(o.kid&&!kidsIn(o.text).includes(o.kid)?o.kid+": ":"")+o.text).join("\n");
+  if(navigator.share){try{await navigator.share({text})}catch(e){}return}
+  try{await navigator.clipboard.writeText(text);toast("Copied. Paste it into a text.")}catch(e){location.href="sms:&body="+encodeURIComponent(text)}
+}
+
 /* ---------- Today: the rundown on open ---------- */
 const T={brief:lsGet("brief",null),busy:false,key:""};
 function syncLine(){
@@ -1211,7 +1299,7 @@ async function briefMaybe(force){
   if(S.view!=="today"||T.busy||!S.ready||!getKey())return;
   if(gcOn()&&(W.calBusy||W.mailBusy||!W.cal.at))return; // wait for the calendar so the rundown is complete
   const rows=briefRows();
-  const lines=rows.map(briefLine),key=todayStr()+"|"+lines.join("\n");
+  const lines=rows.map(briefLine),key=todayStr()+"|v2|"+kidNames().join(",")+"|"+lines.join("\n");
   if(!force&&T.brief&&T.brief.key===key)return;
   T.key=key;
   if(!rows.length){T.brief={key,items:[]};lsSet("brief",T.brief);render();return}
@@ -1220,11 +1308,13 @@ async function briefMaybe(force){
     const r=await geminiJSON(`Today is ${nowContext()}.
 You write the "Heads up" rundown a busy working mom sees when she opens her notes app. Below is everything on her calendar, email, notes and to-do list for today and tomorrow.
 Write up to 6 short bullets of what she needs to REMEMBER: things to bring, wear, pack, buy, pay, sign, send or prep, kid-specific asks, early starts, and to-dos that matter. Pull these details out of event notes and emails. Skip items where there is nothing to remember beyond the event itself (her schedule is shown right below this).
-Each bullet: under 16 words, plain words, start with "Today" or "Tomorrow" when the day isn't obvious, name the kid or person when the source does. Don't invent anything.
-Return JSON: {"items":[{"text":"...","refs":[line numbers this came from]}]}. If there's nothing beyond the schedule, return {"items":[]}.
+Each bullet: under 16 words, plain words, start with "Today" or "Tomorrow" when the day isn't obvious, name the kid or person when the source does. Don't invent anything. Up to 8 bullets.
+Her kids: ${kidNames().join(", ")||"(not set)"}.
+For each bullet: "day" is when she has to act ("tomorrow" for anything to bring, wear, pack, sign or send tomorrow morning; otherwise "today"). "kid" is the kid's name when it's for one of her kids, else null.
+Return JSON: {"items":[{"text":"...","day":"today" or "tomorrow","kid":"name" or null,"refs":[line numbers this came from]}]}. If there's nothing beyond the schedule, return {"items":[]}.
 
 ${lines.join("\n")}`,[]);
-    const items=(Array.isArray(r.items)?r.items:[]).slice(0,6).map(x=>({text:String(x.text||"").slice(0,160),refs:(Array.isArray(x.refs)?x.refs:[]).map(Number).filter(n=>n>=1&&n<=rows.length)})).filter(x=>x.text);
+    const items=(Array.isArray(r.items)?r.items:[]).slice(0,8).map(x=>({text:String(x.text||"").slice(0,160),day:x.day==="tomorrow"?"tomorrow":"today",kid:kidNames().find(k=>k.toLowerCase()===String(x.kid||"").toLowerCase())||null,refs:(Array.isArray(x.refs)?x.refs:[]).map(Number).filter(n=>n>=1&&n<=rows.length)})).filter(x=>x.text);
     // keep the source of each bullet with it, so it still shows after the day's data changes
     items.forEach(it=>{it.srcs=it.refs.slice(0,2).map(n=>rowSrc(rows[n-1].r)).filter(Boolean)});
     T.brief={key,items};lsSet("brief",T.brief);
@@ -1243,7 +1333,9 @@ function briefHTML(){
   const b=T.brief;if(!b)return "";
   if(b.err)return `<section class="brief"><h2>Heads up</h2><p class="hint">${esc(b.err)} <button class="linkbtn" data-act="briefredo">Try again</button></p></section>`;
   if(!b.items.length)return `<section class="brief"><h2>Heads up</h2><p class="hint" style="margin-top:4px">Nothing extra to bring or prep. Your schedule is below.</p></section>`;
-  return `<section class="brief"><h2>Heads up</h2><ul>${b.items.map(it=>`<li><span>${esc(it.text)}</span>${(it.srcs||[]).map(s=>srcTag(s.k,s.extra,s.href)).join("")}</li>`).join("")}</ul></section>`;
+  const list=S.kid==="all"?b.items:b.items.filter(it=>it.kid===S.kid);
+  if(!list.length)return `<section class="brief"><h2>Heads up</h2><p class="hint" style="margin-top:4px">Nothing extra for ${esc(S.kid)}.</p></section>`;
+  return `<section class="brief"><h2>Heads up</h2><ul>${list.map(it=>`<li><span>${esc(it.text)}</span><span style="display:flex;gap:6px;flex-wrap:wrap">${it.kid?kidBadges([it.kid]):""}${(it.srcs||[]).map(s=>srcTag(s.k,s.extra,s.href)).join("")}</span></li>`).join("")}</ul></section>`;
 }
 function todayHTML(){
   const h=new Date().getHours(),hi=h<12?"Good morning":h<17?"Good afternoon":"Good evening";
@@ -1252,11 +1344,13 @@ function todayHTML(){
   if(gcOn())html+=`<p class="hint calst">${syncLine()}</p>${W.err&&W.err!=="email"?`<div class="err">${esc(W.err)}</div>`:""}`;
   html+=`</div>`+askHTML();
   if(!gcOn())html+=`<div class="keycard"><h2>Connect Google</h2><p class="hint" style="margin-top:2px">Connect Google in Settings to see your calendar and email dates here.</p><button class="btn primary" data-act="settings" style="margin-top:10px;width:100%">Open Settings</button></div>`;
-  html+=briefHTML();
+  html+=kidChips();
+  const eve=isEvening();
+  html+=eve?prepHTML():briefHTML();
   const M=weekModel();
-  html+=mailBarHTML(mailCands([...M.days[0].rows,...M.days[1].rows]));
-  M.days.slice(0,2).forEach(({d,rows},k)=>{
-    html+=`<div class="day">${k?"Tomorrow":"Today"} · ${esc(parseYmd(d).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</div><article class="note wkday">${rows.length?rows.map(r=>wkRowHTML({...r,full:true})).join(""):`<p class="hint" style="margin:0">Nothing scheduled</p>`}</article>`;
+  html+=mailBarHTML(mailCands(kidFilter([...M.days[0].rows,...M.days[1].rows])));
+  (eve?[1,0]:[0,1]).forEach(k=>{const {d}=M.days[k],rows=kidFilter(M.days[k].rows);
+    html+=`<div class="day">${k?"Tomorrow":"Today"} · ${esc(parseYmd(d).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</div><article class="note wkday">${rows.length?rows.map(r=>wkRowHTML({...r,full:true})).join(""):`<p class="hint" style="margin:0">${S.kid==="all"?"Nothing scheduled":"Nothing for "+esc(S.kid)}</p>`}</article>`;
   });
   html+=dupHTML();
   return html+`<button class="btn big" data-act="nav" data-v="week" style="margin-top:16px">See the whole week</button><div class="pad"></div>`;
@@ -1500,6 +1594,9 @@ document.addEventListener("click",e=>{
   else if(a==="pickadd")pickAdd(b.dataset.id);
   else if(a==="mpick"){const i=+v;S.mailOff.has(i)?S.mailOff.delete(i):S.mailOff.add(i);render()}
   else if(a==="mailadd")mailAdd(v);
+  else if(a==="kidf"){S.kid=v;render()}
+  else if(a==="prepchk")prepCheck(v);
+  else if(a==="prepsend")prepSend();
   else if(a==="askclear"){A.res=null;A.err="";A.q="";render()}
   else if(a==="askex"){A.q=v;askRun()}
   else if(a==="dupdel")dupDelete(v);
@@ -1555,6 +1652,7 @@ document.addEventListener("input",e=>{
   if(t.id==="cap")S.draft=t.value;
   else if(t.id==="q"){S.q=t.value;render()}
   else if(t.id==="askin")A.q=t.value;
+  else if(t.id==="kidsin"){lsSet("kids",t.value.split(",").map(x=>x.trim().replace(/\s+/g," ")).filter(Boolean).slice(0,6));if(!kidNames().includes(S.kid))S.kid="all"}
   else if(t.id==="partnerin"){try{localStorage.setItem("partner_name",t.value.trim())}catch(_){}}
 });
 document.addEventListener("change",async e=>{
