@@ -1899,11 +1899,11 @@ function upcoming(){
 function render(){
   MAILPICK=new Set();
   const up=upcoming().length,dn=dueTasks().length;
-  $("#topnav").innerHTML=`<button data-act="nav" data-v="today" ${S.view==="today"?'aria-current="page"':""}>Today</button><button data-act="nav" data-v="notes" ${S.view==="notes"?'aria-current="page"':""}>Feed</button><button data-act="nav" data-v="week" ${S.view==="week"?'aria-current="page"':""}>Week</button><button data-act="nav" data-v="todo" ${S.view==="todo"?'aria-current="page"':""}>To do${dn?`<span class="ct">${dn}</span>`:""}</button>`;
+  $("#topnav").innerHTML=`<button data-act="nav" data-v="today" ${S.view==="today"?'aria-current="page"':""}>Today</button><button data-act="nav" data-v="notes" ${S.view==="notes"?'aria-current="page"':""}>Feed</button><button data-act="nav" data-v="week" ${S.view==="week"?'aria-current="page"':""}>Week</button><button data-act="nav" data-v="todo" ${S.view==="todo"?'aria-current="page"':""}>To do${dn?`<span class="ct">${dn}</span>`:""}</button><button data-act="nav" data-v="details" ${S.view==="details"?'aria-current="page"':""}>Details</button>`;
   if(S.view==="upcoming")S.view="week";
   const ae=document.activeElement,fid=ae&&(ae.id==="cap"||ae.id==="q"||ae.id==="askin")?ae.id:null,ss=fid?ae.selectionStart:0,se=fid?ae.selectionEnd:0;
   const ps=$("#pfslot");if(ps)ps.innerHTML=pfButton();
-  $("#main").innerHTML=pfBar()+(S.view==="today"?todayHTML():S.view==="week"?weekHTML():S.view==="upcoming"?upcomingHTML():S.view==="todo"?todoHTML():notesHTML())+selBarHTML();
+  $("#main").innerHTML=pfBar()+(S.view==="today"?todayHTML():S.view==="week"?weekHTML():S.view==="upcoming"?upcomingHTML():S.view==="todo"?todoHTML():S.view==="details"?detailsHTML():notesHTML())+selBarHTML();
   if(fid){const el=document.getElementById(fid);if(el){el.focus({preventScroll:true});try{el.setSelectionRange(ss,se)}catch(_){}}}
 }
 function captureHTML(){
@@ -2003,6 +2003,23 @@ function notesHTML(){
   if(!S.notes.length)html+=`<div class="empty"><h2>Nothing yet</h2>Type a quick note, or add a screenshot of a flyer, text or schedule. remembrd timestamps it, sorts it into a category, and pulls out any dates for your calendar.</div>`;
   else if(!list.length)html+=`<div class="empty">No notes match.</div>`;
   else{let last="";for(const n of list){const d=dayLabel(n.createdAt);if(d!==last){html+=`<div class="day">${esc(d)}</div>`;last=d}html+=noteHTML(n)}}
+  return html+`<div class="pad"></div>`;
+}
+/* ---------- Details: notes with no date and no to-do ---------- */
+const isDetail=n=>!n.parent&&!n.fromCal&&n.status==="sorted"&&!(n.events||[]).length&&!n.task&&!S.notes.some(c=>c.parent===n.id);
+function detailsHTML(){
+  if(!S.ready)return `<div class="empty">Loading…</div>`;
+  const q=S.q.trim().toLowerCase();
+  const all=S.notes.filter(n=>isDetail(n)&&(S.kid==="all"||notePeople(n).includes(S.kid)));
+  const list=all.filter(n=>!q||[n.text,n.title,n.summary,n.category].join(" ").toLowerCase().includes(q));
+  let html=`<div style="margin-top:18px"><h1 style="font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em">Details</h1><p class="hint" style="margin-top:2px">Notes with no date or to-do: sizes, codes, names, info to keep handy.</p></div>`;
+  if(all.length)html+=`<label class="search">${icon.search}<input id="q" type="search" placeholder="Search details" value="${esc(S.q)}" autocomplete="off"></label>`;
+  html+=kidChips();
+  if(!all.length)return html+`<div class="empty"><h2>No details yet</h2>Add a note like "Arthur's shoe size is 4" or "Gate code is 1234." Anything without a date or to-do lands here.</div><div class="pad"></div>`;
+  if(!list.length)return html+`<div class="empty">No details match.</div><div class="pad"></div>`;
+  const groups={};list.forEach(n=>{const c=n.category||"Unsorted";(groups[c]=groups[c]||[]).push(n)});
+  const order=getCats().filter(c=>groups[c]).concat(Object.keys(groups).filter(c=>!getCats().includes(c)));
+  for(const c of order)html+=`<div class="day"><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:${catColor(c)}"></span>${esc(c)}</div>`+groups[c].map(noteHTML).join("");
   return html+`<div class="pad"></div>`;
 }
 function todoHTML(){
@@ -2171,7 +2188,7 @@ $("#lb").addEventListener("click",e=>{if(e.target.id==="lb")$("#lb").hidden=true
 
 /* ---------- boot ---------- */
 const gcBack=gcTakeRedirect();
-if(gcBack){try{const v=sessionStorage.getItem("gcal_return");if(["today","notes","week","todo"].includes(v))S.view=v}catch(e){}}
+if(gcBack){try{const v=sessionStorage.getItem("gcal_return");if(["today","notes","week","todo","details"].includes(v))S.view=v}catch(e){}}
 // every fresh open starts on Today
 else S.view="today";
 render();
