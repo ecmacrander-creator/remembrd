@@ -163,7 +163,7 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 .tdyhead h2{font-size:19px;font-weight:800;letter-spacing:-.01em}
 .tdyhead span{font-size:13px;color:var(--ink-2);font-weight:600}
 .duebox.tdy{margin-top:14px}
-.tmeta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0 0 44px}
+.tmeta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:5px 0 0 12px}
 .rmbtns{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .whob{border:0;background:none;padding:0;margin:0;cursor:pointer;display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;font:inherit}
 .todo .info .whob{display:flex;margin:4px 0 0}
@@ -633,8 +633,9 @@ ${lines.join("\n")}`,[]);
       const ck=((c.calId||"")+"/"+(c.id||c.title)+"|"+normT(title)).slice(0,220);
       if(gone.has(ck)||S.notes.some(n=>n.calKey===ck))continue;
       if(S.notes.some(n=>n.task&&!n.task.doneAt&&Math.abs(parseYmd(n.task.due)-parseYmd(due))<=864e5&&titleMatch(n.task.title,title)))continue;
-      const t=makeTask({title,due},title);t.who="me";
-      const n={id:uid(),createdAt:new Date().toISOString(),text:"From your calendar: "+c.title+(c.desc?"\n"+c.desc.slice(0,300):""),title,summary:"",category:addCat(x.category||"Home"),images:[],events:[],status:"sorted",source:"cal",fromCal:true,calKey:ck,calLink:c.link||"",task:t};
+      const t=makeTask({title,due},title),own=calOwner(c.calId);t.who=own===partnerName()?"partner":"me";
+      const n={id:uid(),createdAt:new Date().toISOString(),text:"From your calendar: "+c.title+(c.desc?"\n"+c.desc.slice(0,300):""),title,summary:"",category:addCat(x.category||"Home"),images:[],events:[],status:"sorted",source:"cal",fromCal:true,calKey:ck,calId:c.calId||"",calLink:c.link||"",task:t};
+      if(own&&own!==meName()&&own!==partnerName()){n.people=[own];n.peopleSet=true}
       S.notes.unshift(n);await putNote(n);made++;
     }
     lsSet("cal_tasks",{key,at:Date.now()});
@@ -651,7 +652,7 @@ function todayTasksHTML(){
   let h=`<section class="duebox tdy"><div class="duehead"><h2>To do</h2><span>${soon.length?soon.length+" this week":""}</span></div>`;
   if(CT.busy)h+=`<p class="hint" style="margin:4px 0 0"><span class="spinner"></span> Looking for to-dos in your calendar…</p>`;
   if(!soon.length&&!CT.busy)h+=`<p class="hint" style="margin:4px 0 0">${S.kid==="all"?"Nothing due this week.":"Nothing for "+esc(S.kid)+" this week."}${gcOn()&&getKey()?"":" Connect Google and add your Gemini key in Settings so remembrd can pull to-dos from your calendar."}</p>`;
-  h+=soon.slice(0,10).map(n=>`<div class="duerow"><span class="dot" style="background:${catColor(n.category)}"></span><div style="flex:1;min-width:0">${taskHTML(n)}<div class="tmeta">${noteTag(n)}</div></div></div>`).join("");
+  h+=soon.slice(0,10).map(n=>`<div class="duerow"><div style="flex:1;min-width:0">${taskHTML(n)}<div class="tmeta">${noteTag(n)}</div></div></div>`).join("");
   if(soon.length>10||later)h+=`<button class="linkbtn" data-act="nav" data-v="todo" style="margin-top:10px">See all ${open.length} to-dos</button>`;
   return h+`</section>`;
 }
@@ -1162,7 +1163,7 @@ async function saveEdit(){
   let cat=$("#ecat").value;if(cat==="__new")cat=addCat($("#enewcat").value||"Other");
   n.title=$("#etitle").value.trim();
   if(cat!==n.category)await setNoteCat(n,cat);
-  if(e.peopleSet){n.people=(e.people||[]).slice();n.peopleSet=true;syncWho(n)}
+  if(e.peopleSet){n.people=(e.people||[]).slice();n.peopleSet=true;n.peopleManual=true;syncWho(n);if(n.task)n.task.whoManual=true}
   const t=$("#etext").value;if(n.text||!n.summary)n.text=t;else n.summary=t;
   n.events=n.events.filter(x=>e.events.some(y=>y.id===x.id));
   if(e.task){const due=$("#edue").value||todayStr(),rep=$("#erep").value||null,old=n.task;
@@ -1190,7 +1191,7 @@ function renderWho(){
 }
 async function saveWho(){
   const sp=S.whoSpec,list=peopleNames().filter(k=>S.whoSel.has(k));
-  if(sp.noteId){const n=S.notes.find(x=>x.id===sp.noteId);if(n){n.people=list;n.peopleSet=true;syncWho(n);await putNote(n)}}
+  if(sp.noteId){const n=S.notes.find(x=>x.id===sp.noteId);if(n){n.people=list;n.peopleSet=true;n.peopleManual=true;syncWho(n);if(n.task)n.task.whoManual=true;await putNote(n)}}
   else{const m=lsGet("cal_people",{})||{};m[sp.calP]=list;lsSet("cal_people",m)}
   S.whoSpec=null;closeSheet();
 }
@@ -1247,7 +1248,8 @@ function renderSettings(){
   <span class="lbl">Google calendar &amp; email</span>
   <p class="hint" style="margin-top:0">remembrd checks your calendar so it won't suggest something that's already there, adds the dates you pick, and shows your calendar plus dates pulled from your email. Email stays read-only.</p>
   ${gcOn()?`<p style="margin:6px 0 0;font-weight:600">${lsGet("gcal_need",false)?"Needs a quick reconnect":"Connected"}${lsGet("gcal_hint","")?` <span class="hint" style="font-weight:400">· ${esc(lsGet("gcal_hint",""))}</span>`:""}</p>
-    <div class="sheetfoot" style="margin-top:8px">${lsGet("gcal_need",false)?`<button class="btn primary" data-act="gcauth">Reconnect</button>`:`<button class="btn" data-act="gccheck">Check now</button>`}<button class="btn ghost danger" data-act="gcoff">Disconnect</button></div>`
+    <div class="sheetfoot" style="margin-top:8px">${lsGet("gcal_need",false)?`<button class="btn primary" data-act="gcauth">Reconnect</button>`:`<button class="btn" data-act="gccheck">Check now</button>`}<button class="btn ghost danger" data-act="gcoff">Disconnect</button></div>
+    ${(GC.cals||[]).length>1?`<p class="hint" style="margin-top:14px;font-weight:700;color:var(--ink-2)">Whose calendar is each one?</p><p class="hint" style="margin-top:0">Events and to-dos from a person's calendar get tagged to them.</p>${GC.cals.map(c=>{const o=calOwner(c.id);return `<div class="cathead" style="margin-top:6px"><span style="flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.summaryOverride||c.summary||c.id)}</span><select data-calowner="${esc(c.id)}" aria-label="Whose calendar">${["",...peopleNames()].map(k=>`<option value="${esc(k)}" ${k===o?"selected":""}>${k?esc(k):"Shared / no one"}</option>`).join("")}</select></div>`}).join("")}`:""}`
   :`<p class="hint" style="margin-top:6px">You'll sign in with Google and approve read-only access. Google may warn that the app isn't verified. Tap <b>Advanced</b>, then <b>Go to remembrd</b>.</p>
     <button class="btn primary big" data-act="gcconnect" style="margin-top:10px">Connect Google</button>`}
   <span class="lbl">Kids' names</span>
@@ -1290,6 +1292,7 @@ async function weekLoad(force){
   if(!gcOn())return;
   if(!gcTok()){if(force)gcAuth(!lsGet("gcal_need",false));return}
   await Promise.all([weekLoadCal(force),weekMail(force)]);
+  fixCalTaskOwners();
   await calTasksMaybe(force);
   briefMaybe();
 }
@@ -1506,7 +1509,8 @@ function rowKids(r){
   const x=r.x;
   if((r.src==="rem"||r.src==="task")&&x.n){const ps=peopleSrc(x.n);if(ps)return okPeople(ps.people);
     if(r.src==="task"){const ad=[x.n.task.who==="partner"?partnerName():meName()];return [...ad,...rowKids0(r).filter(k=>!ad.includes(k))]}}
-  if(r.src==="cal"){const cp=calPeople(x);if(cp)return okPeople(cp)}
+  if(r.src==="cal"){const cp=calPeople(x);if(cp)return okPeople(cp);
+    const o=calOwner(x.calId),base=rowKids0(r);return o&&o!==meName()&&!base.includes(o)?[o,...base]:base}
   return rowKids0(r);
 }
 function rowKids0(r){
@@ -1539,6 +1543,26 @@ function notePeople(n){
   const src=peopleSrc(n);if(src)return okPeople(src.people);
   const ad=n.task?[n.task.who==="partner"?partnerName():meName()]:[];
   return [...ad,...noteKids(n).filter(k=>!ad.includes(k))];
+}
+function calOwnerGuess(c){
+  const t=((c.summaryOverride||c.summary||"")+" "+(c.id||"")).toLowerCase();
+  if(c.primary)return meName();
+  for(const k of peopleNames())if(k&&new RegExp("\\b"+reEsc(k.toLowerCase())+"\\b").test(t))return k;
+  return "";
+}
+function calOwner(calId){
+  const m=lsGet("cal_owner",{})||{};if(calId in m)return m[calId]||"";
+  const c=(GC.cals||[]).find(x=>x.id===calId);return c?calOwnerGuess(c):"";
+}
+// to-dos from Jarrod's (or a kid's) calendar belong to them
+function fixCalTaskOwners(){
+  for(const n of S.notes){
+    if(!n.fromCal||!n.task||n.task.whoSet||n.peopleSet)continue;
+    const calId=n.calId||String(n.calKey||"").split("/")[0],o=calOwner(calId);
+    if(!o||o===meName())continue;
+    if(o===partnerName())n.task.who="partner";else{n.people=[o];n.peopleSet=true}
+    n.task.whoSet=true;putNote(n);
+  }
 }
 const calPKey=c=>(c.calId||"")+"/"+(c.id||c.title);
 function calPeople(c){const m=lsGet("cal_people",{})||{};return m[calPKey(c)]||null}
@@ -1865,7 +1889,7 @@ function notesHTML(){
   const list=S.notes.filter(n=>!n.parent&&!n.fromCal&&(S.filter==="All"||n.category===S.filter)&&(S.kid==="all"||notePeople(n).includes(S.kid))&&(!q||[n.text,n.title,n.summary,n.category,...(n.events||[]).map(e=>e.title+" "+e.location)].join(" ").toLowerCase().includes(q)));
   let html=captureHTML();
   const due=dueTasks();
-  if(due.length)html+=`<section class="duebox"><div class="duehead"><h2>To do</h2><span>${due.length} waiting</span></div>${due.map(n=>`<div class="duerow"><span class="dot" style="background:${catColor(n.category)}"></span>${taskHTML(n)}</div>`).join("")}</section>`;
+  if(due.length)html+=`<section class="duebox"><div class="duehead"><h2>To do</h2><span>${due.length} waiting</span></div>${due.map(n=>`<div class="duerow">${taskHTML(n)}</div>`).join("")}</section>`;
   if(S.notes.length){
     html+=`<label class="search">${icon.search}<input id="q" type="search" placeholder="Search notes" value="${esc(S.q)}" autocomplete="off"></label>
     <div class="chips"><button class="chip" data-act="filter" data-v="All" aria-pressed="${S.filter==="All"}">All <span class="n">${S.notes.filter(n=>!n.parent).length}</span></button>
@@ -2009,6 +2033,9 @@ document.addEventListener("change",async e=>{
   else if(t.matches&&t.matches("[data-caltarget]")){lsSet("cal_target",t.value);render()}
   else if(t.dataset&&t.dataset.catname!=null){const old=t.dataset.catname;renameCat(old,t.value).then(nu=>{if(nu!==old)toast(`Renamed to ${nu}`);renderSettings()})}
   else if(t.dataset&&t.dataset.catdesc!=null){const d=catDescs(),v=t.value.trim().slice(0,140);if(v)d[t.dataset.catdesc]=v;else delete d[t.dataset.catdesc];lsSet("cat_desc",d)}
+  else if(t.dataset&&t.dataset.calowner!=null){const m=lsGet("cal_owner",{})||{};m[t.dataset.calowner]=t.value;lsSet("cal_owner",m);
+    for(const n of S.notes)if(n.fromCal&&n.task&&(n.calId||String(n.calKey||"").split("/")[0])===t.dataset.calowner&&!n.task.whoManual){n.task.whoSet=false;if(n.peopleSet&&!n.peopleManual){n.peopleSet=false;n.people=[]}n.task.who="me";putNote(n)}
+    fixCalTaskOwners();toast("Saved")}
   else if(t.id==="ecat"){$("#enewcat").hidden=t.value!=="__new";if(t.value==="__new")$("#enewcat").focus()}
 });
 document.addEventListener("keydown",e=>{
