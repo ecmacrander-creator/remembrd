@@ -990,6 +990,8 @@ function renderSettings(){
   <span class="lbl">Kids' names</span>
   <p class="hint" style="margin-top:0">Used to tag items and filter by kid. Separate with commas.</p>
   <input id="kidsin" class="inp" type="text" autocomplete="off" placeholder="Emmett, Arthur" value="${esc(kidNames().join(", "))}">
+  ${kidNames().map(k=>`<label class="hint" style="display:block;margin-top:10px;font-weight:700;color:var(--ink-2)">${esc(k)}'s teachers, teams and activities</label><input class="inp" data-kidclue="${esc(k)}" type="text" autocomplete="off" placeholder="Teacher's last name, team, activity" value="${esc(kidClues(k).join(", "))}" style="margin-top:4px">`).join("")}
+  <p class="hint">Anything that mentions one of these gets tagged for that kid, even without their name.</p>
   <span class="lbl">Your partner's name</span>
   <p class="hint" style="margin-top:0">Used when you assign to-dos to him.</p>
   <input id="partnerin" class="inp" type="text" autocomplete="off" placeholder="Name" value="${esc(partnerName()==="Partner"?"":partnerName())}" data-partner>
@@ -1214,13 +1216,24 @@ const aggView=()=>S.view==="week"||S.view==="today";
 function kidNames(){const v=lsGet("kids",null);return Array.isArray(v)?v.filter(Boolean):["Emmett","Arthur"]}
 const KID_COLORS=["#2F7FC1","#2E9B5F","#C2478E","#E0702C","#7B5CC4"];
 function kidColor(k){const i=kidNames().indexOf(k);return KID_COLORS[(i<0?0:i)%KID_COLORS.length]}
-function kidsIn(text){const t=String(text||"");return kidNames().filter(k=>new RegExp("\\b"+k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b","i").test(t))}
+// clues: teachers, teams, activities that mean an item is for that kid
+const KID_CLUES_DEFAULT={Emmett:["Sweeney","robotics"],Arthur:["Barton","baseball","Little League"]};
+function kidClues(k){const c=lsGet("kid_clues",null)||KID_CLUES_DEFAULT;return Array.isArray(c[k])?c[k]:[]}
+function setKidClues(k,list){const c={...(lsGet("kid_clues",null)||KID_CLUES_DEFAULT)};c[k]=list;lsSet("kid_clues",c)}
+const reEsc=v=>String(v).replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+function kidRe(k){
+  // the name, or any clue (a clue also matches longer forms: "robotic" finds "robotics", "Barton" finds "Barton Bunch")
+  const stems=kidClues(k).map(c=>c.trim()).filter(c=>c.length>1).map(c=>c.length>4?c.replace(/s$/i,""):c);
+  return new RegExp("\\b("+[reEsc(k),...stems.map(c=>reEsc(c)+"\\w*")].join("|")+")\\b","i");
+}
+function kidsIn(text){const t=String(text||"");return kidNames().filter(k=>kidRe(k).test(t))}
+function kidsPrompt(){return kidNames().map(k=>{const c=kidClues(k);return c.length?`${k} (${c.join(", ")})`:k}).join("; ")}
 function rowKids(r){
   const x=r.x;let first="",second="";
-  if(r.src==="cal")first=x.title+" "+(x.desc||"");
-  else if(r.src==="mail"){first=[x.title,x.details,x.todo&&x.todo.title].join(" ");second=x.subject}
-  else if(r.src==="task"){const n=x.n,par=n.parent&&S.notes.find(p=>p.id===n.parent);first=n.task.title;second=[n.title,n.text,n.summary,par&&par.title,par&&par.text].join(" ")}
-  else{first=[x.title,x.ev&&x.ev.details].join(" ");second=[x.n.title,x.n.text,x.n.summary].join(" ")}
+  if(r.src==="cal"){first=x.title+" "+(x.desc||"");second=[x.location,x.cal].join(" ")}
+  else if(r.src==="mail"){first=[x.title,x.details,x.todo&&x.todo.title].join(" ");second=[x.subject,x.from,x.category].join(" ")}
+  else if(r.src==="task"){const n=x.n,par=n.parent&&S.notes.find(p=>p.id===n.parent);first=n.task.title;second=[n.title,n.text,n.summary,par&&par.title,par&&par.text,n.category].join(" ")}
+  else{first=[x.title,x.ev&&x.ev.details,x.location].join(" ");second=[x.n.title,x.n.text,x.n.summary,x.n.category].join(" ")}
   const k=kidsIn(first);return k.length?k:kidsIn(second);
 }
 function kidBadges(list){return (list||[]).map(k=>`<span class="kidb" style="--kc:${kidColor(k)}">${esc(k)}</span>`).join("")}
@@ -1245,7 +1258,7 @@ function prepItems(){
   for(const n of tasks){
     if(out.some(o=>o.task===n.id))continue;
     const par=n.parent&&S.notes.find(p=>p.id===n.parent);
-    out.push({key:"t:"+n.id,task:n.id,text:n.task.title,kid:kidsIn(n.task.title)[0]||kidsIn([n.title,n.text,par&&par.title,par&&par.text].join(" "))[0]||null,srcs:[{k:noteSrc(n),extra:"to-do",href:""}]});
+    out.push({key:"t:"+n.id,task:n.id,text:n.task.title,kid:kidsIn(n.task.title)[0]||kidsIn([n.title,n.text,par&&par.title,par&&par.text,n.category].join(" "))[0]||null,srcs:[{k:noteSrc(n),extra:"to-do",href:""}]});
   }
   const d=prepDone();
   out.forEach(o=>{const n=o.task&&S.notes.find(x=>x.id===o.task);o.done=n?!!n.task.doneAt:d.keys.includes(o.key)});
@@ -1299,7 +1312,7 @@ async function briefMaybe(force){
   if(S.view!=="today"||T.busy||!S.ready||!getKey())return;
   if(gcOn()&&(W.calBusy||W.mailBusy||!W.cal.at))return; // wait for the calendar so the rundown is complete
   const rows=briefRows();
-  const lines=rows.map(briefLine),key=todayStr()+"|v2|"+kidNames().join(",")+"|"+lines.join("\n");
+  const lines=rows.map(briefLine),key=todayStr()+"|v2|"+kidsPrompt()+"|"+lines.join("\n");
   if(!force&&T.brief&&T.brief.key===key)return;
   T.key=key;
   if(!rows.length){T.brief={key,items:[]};lsSet("brief",T.brief);render();return}
@@ -1309,7 +1322,7 @@ async function briefMaybe(force){
 You write the "Heads up" rundown a busy working mom sees when she opens her notes app. Below is everything on her calendar, email, notes and to-do list for today and tomorrow.
 Write up to 6 short bullets of what she needs to REMEMBER: things to bring, wear, pack, buy, pay, sign, send or prep, kid-specific asks, early starts, and to-dos that matter. Pull these details out of event notes and emails. Skip items where there is nothing to remember beyond the event itself (her schedule is shown right below this).
 Each bullet: under 16 words, plain words, start with "Today" or "Tomorrow" when the day isn't obvious, name the kid or person when the source does. Don't invent anything. Up to 8 bullets.
-Her kids: ${kidNames().join(", ")||"(not set)"}.
+Her kids, with their teachers, teams and activities: ${kidsPrompt()||"(not set)"}. Use these to tell which kid an item is for even when the name isn't written (a note from Ms. Sweeney's class is that kid's).
 For each bullet: "day" is when she has to act ("tomorrow" for anything to bring, wear, pack, sign or send tomorrow morning; otherwise "today"). "kid" is the kid's name when it's for one of her kids, else null.
 Return JSON: {"items":[{"text":"...","day":"today" or "tomorrow","kid":"name" or null,"refs":[line numbers this came from]}]}. If there's nothing beyond the schedule, return {"items":[]}.
 
@@ -1400,7 +1413,7 @@ Use the 1-3 most distinctive words (the object, event, class, team or place). Us
       `REMEMBRD ${noteSrc(n)} saved ${n.createdAt.slice(0,10)} [${n.category}]: ${n.title} | ${String(n.summary||n.text||"").replace(/\s+/g," ").slice(0,400)}${(n.events||[]).map(e=>` | date: ${e.date}${e.start?" "+e.start:""} ${e.title}${e.details?" ("+e.details+")":""}`).join("")}${n.task?` | to-do: ${n.task.title}, due ${n.task.due}${n.task.doneAt?", done":""}`:""}`,
       {k:noteSrc(n),extra:n.title,href:n.msgId?mailLink({msgId:n.msgId}):""}));
     const r=await geminiJSON(`Today is ${nowContext()}.
-You are remembrd, a personal assistant for a busy working mom. Answer her question using ONLY the sources below (her email, calendar and saved notes).
+You are remembrd, a personal assistant for a busy working mom. Her kids, with their teachers, teams and activities: ${kidsPrompt()}. Answer her question using ONLY the sources below (her email, calendar and saved notes).
 Lead with the direct answer (yes/no or the thing itself), then the key detail: who, what, when. Name which kid or person when the source says. If sources disagree, say so. If nothing below answers it, say you couldn't find it and suggest where she might check. 1-3 short sentences, plain words.
 Return JSON: {"answer":"...","refs":["E2","C5"]} listing the ids you actually used (most important first, max 3).
 
@@ -1652,6 +1665,7 @@ document.addEventListener("input",e=>{
   if(t.id==="cap")S.draft=t.value;
   else if(t.id==="q"){S.q=t.value;render()}
   else if(t.id==="askin")A.q=t.value;
+  else if(t.dataset&&t.dataset.kidclue){setKidClues(t.dataset.kidclue,t.value.split(",").map(x=>x.trim().replace(/\s+/g," ")).filter(Boolean).slice(0,12))}
   else if(t.id==="kidsin"){lsSet("kids",t.value.split(",").map(x=>x.trim().replace(/\s+/g," ")).filter(Boolean).slice(0,6));if(!kidNames().includes(S.kid))S.kid="all"}
   else if(t.id==="partnerin"){try{localStorage.setItem("partner_name",t.value.trim())}catch(_){}}
 });
@@ -1659,6 +1673,7 @@ document.addEventListener("change",async e=>{
   const t=e.target;
   if(t.id==="shotin"||t.id==="camin"){const files=[...(t.files||[])].slice(0,6);t.value="";
     for(const f of files){const blob=await prepareImage(f);S.shots.push({blob,url:URL.createObjectURL(blob),cam:t.id==="camin"})}render();const c=$("#cap");c&&c.focus()}
+  else if(t.id==="kidsin"&&S.sheetMode==="settings")renderSettings();
   else if(t.matches&&t.matches("[data-caltarget]")){lsSet("cal_target",t.value);render()}
   else if(t.id==="ecat"){$("#enewcat").hidden=t.value!=="__new";if(t.value==="__new")$("#enewcat").focus()}
 });
