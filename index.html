@@ -1851,7 +1851,7 @@ async function askAdd(i){
 async function askRun(){
   const q=String(A.q||"").trim();if(!q||A.busy)return;
   if(!getKey()){toast("Add your Gemini key in Settings to ask questions");openSettings();return}
-  A.busy=true;A.err="";A.res=null;A.stage="Checking your calendar";render();
+  A.q="";A.busy=true;A.err="";A.res=null;A.stage="Checking your calendar";render();
   try{
     const google=gcOn()&&!!gcTok();
     if(google&&Date.now()-W.cal.at>10*6e4)await weekLoadCal(true);
