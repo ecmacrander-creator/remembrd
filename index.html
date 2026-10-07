@@ -315,6 +315,13 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 .answer .aq{font-size:12.5px;color:var(--ink-3);font-weight:600}
 .answer p{margin:4px 0 0;font-size:15.5px;line-height:1.45}
 .answer .srcs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center}
+.answer .acts{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.answer .act{display:flex;align-items:center;gap:10px;border:1px solid var(--line,rgba(0,0,0,.1));border-radius:12px;padding:8px 10px}
+.answer .atx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.answer .akind{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.answer .awhen{font-size:13px;color:var(--ink-3)}
+.answer .act .btn{flex:none;min-height:36px;padding:6px 12px}
+.answer .adone{flex:none;font-size:13px;font-weight:700;color:var(--ink-3)}
 .answer .srcs .lbl2{font-size:12px;color:var(--ink-3);font-weight:700}
 .brief{margin-top:14px;background:var(--accent-soft);border-radius:var(--r);padding:13px 15px}
 .brief h2{font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px}
@@ -1813,9 +1820,26 @@ function askHTML(){
   let h=`<form class="ask" id="askf" role="search"><input id="askin" type="text" enterkeyhint="search" autocomplete="off" placeholder="Ask about your calendar or email" value="${esc(A.q)}" aria-label="Ask remembrd"><button class="btn primary" ${A.busy?"disabled":""}>${A.busy?'<span class="spinner"></span>':"Ask"}</button></form>`;
   if(A.busy)h+=`<div class="answer"><p class="hint" style="margin:0">${esc(A.stage||"Looking")}…</p></div>`;
   else if(A.err)h+=`<div class="answer"><div class="err" style="margin:0">${esc(A.err)}</div></div>`;
-  else if(A.res)h+=`<div class="answer"><div class="aq">${esc(A.res.q)}</div><p>${esc(A.res.answer)}</p>
+  else if(A.res)h+=`<div class="answer"><div class="aq">${esc(A.res.q)}</div><p>${esc(A.res.answer)}</p>${actsHTML(A.res.acts)}
     <div class="srcs">${A.res.srcs.length?`<span class="lbl2">From</span>`+A.res.srcs.map(s=>srcTag(s.k,s.extra,s.href)).join(""):`<span class="lbl2">No matching source found</span>`}<span style="flex:1"></span><button class="linkbtn" data-act="askclear">Clear</button></div></div>`;
   return h;
+}
+function actsHTML(acts){
+  if(!acts||!acts.length)return "";
+  const dl=d=>parseYmd(d).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
+  return `<div class="acts">${acts.map((x,i)=>{const when=x.type==="todo"?"Due "+dl(x.due):dl(x.date)+(x.start?" · "+tLabel(x):"");
+    return `<div class="act"><div class="atx"><span class="akind">${x.type==="todo"?"To-do":"Event"}</span><b>${esc(x.title)}</b><span class="awhen">${esc(when)}${x.src&&x.src.msgId?" · from email":""}</span></div>${x.done?`<span class="adone">Added ✓</span>`:`<button class="btn ghost" data-act="askadd" data-v="${i}">${x.type==="todo"?"Add to-do":"Add event"}</button>`}</div>`}).join("")}</div>`;
+}
+async function askAdd(i){
+  const x=A.res&&A.res.acts&&A.res.acts[+i];if(!x||x.done)return;
+  const s=x.src||{},mid=s.msgId||"";
+  const n={id:uid(),createdAt:new Date().toISOString(),text:[`From Ask: ${A.res.q}`,A.res.answer,s.subject?"From email: "+s.subject:""].filter(Boolean).join("\n"),title:x.title,summary:"",category:addCat(getCats().includes(x.category)?x.category:"Home"),images:[],events:[],status:"sorted",source:mid?"gmail":"note",msgId:mid};
+  if(x.type==="todo"){const t=makeTask({title:x.title,due:x.due},x.title);
+    if(findDupTask(t)){x.done=true;render();toast("Already on your to-dos");return}
+    t.who="me";n.task=t;S.notes.unshift(n);await putNote(n);x.done=true;render();toast("Added to your to-dos");gcCheck(false);return}
+  const ev={id:uid(),title:x.title,date:x.date,start:x.start,end:x.end,endDate:null,location:x.location,details:s.subject?"From email: "+s.subject:"",added:false};
+  n.events=[ev];S.notes.unshift(n);await putNote(n);x.done=true;render();
+  addItems([{kind:"ev",n,ev}]);
 }
 async function askRun(){
   const q=String(A.q||"").trim();if(!q||A.busy)return;
@@ -1842,24 +1866,30 @@ Use the 1-3 most distinctive words (the object, event, class, team or place). Us
     A.stage="Gemini is reading what it found";render();
     const refs={},L=[];
     const add=(id,txt,src)=>{refs[id]=src;L.push(`[${id}] ${txt}`)};
-    mails.forEach((m,i)=>add("E"+(i+1),`EMAIL from ${m.from}, sent ${m.date}, subject "${m.subject}":\n${m.body}`,{k:"gmail",extra:m.subject||m.from,href:mailLink({msgId:m.id})}));
-    (W.mail.items||[]).filter(m=>!m.hidden).slice(0,40).forEach((m,i)=>add("X"+(i+1),`EMAIL ITEM ${m.date||"no date"}${m.start?" "+m.start:""}: ${m.title} | ${m.details} (subject "${m.subject}")`,{k:"gmail",extra:m.subject||m.from,href:mailLink(m)}));
+    mails.forEach((m,i)=>add("E"+(i+1),`EMAIL from ${m.from}, sent ${m.date}, subject "${m.subject}":\n${m.body}`,{k:"gmail",extra:m.subject||m.from,href:mailLink({msgId:m.id}),msgId:m.id,subject:m.subject||""}));
+    (W.mail.items||[]).filter(m=>!m.hidden).slice(0,40).forEach((m,i)=>add("X"+(i+1),`EMAIL ITEM ${m.date||"no date"}${m.start?" "+m.start:""}: ${m.title} | ${m.details} (subject "${m.subject}")`,{k:"gmail",extra:m.subject||m.from,href:mailLink(m),msgId:m.msgId||"",subject:m.subject||""}));
     (W.cal.items||[]).slice(0,150).forEach((c,i)=>add("C"+(i+1),`CALENDAR ${c.date}${c.start?" "+c.start:" all day"} (${c.cal}): ${c.title}${c.location?" @ "+c.location:""}${c.desc?" | notes: "+c.desc.replace(/\s+/g," ").slice(0,500):""}`,{k:"cal",extra:c.cal,href:c.link}));
     const cutoff=new Date(Date.now()-45*864e5).toISOString(),today=todayStr();
     S.notes.filter(n=>n.createdAt>=cutoff||(n.events||[]).some(e=>e.date>=today)||n.task&&!n.task.doneAt).slice(0,60).forEach((n,i)=>add("N"+(i+1),
       `REMEMBRD ${noteSrc(n)} saved ${n.createdAt.slice(0,10)} [${n.category}]: ${n.title} | ${String(n.summary||n.text||"").replace(/\s+/g," ").slice(0,400)}${(n.events||[]).map(e=>` | date: ${e.date}${e.start?" "+e.start:""} ${e.title}${e.details?" ("+e.details+")":""}`).join("")}${n.task?` | to-do: ${n.task.title}, due ${n.task.due}${n.task.doneAt?", done":""}`:""}`,
-      {k:noteSrc(n),extra:n.title,href:n.msgId?mailLink({msgId:n.msgId}):""}));
+      {k:noteSrc(n),extra:n.title,href:n.msgId?mailLink({msgId:n.msgId}):"",msgId:n.msgId||"",note:true}));
     const r=await geminiJSON(`Today is ${nowContext()}.
 You are remembrd, a personal assistant for a busy working mom. Her kids, with their teachers, teams and activities: ${kidsPrompt()}. Answer her question using ONLY the sources below (her email, calendar and saved notes).
 Lead with the direct answer (yes/no or the thing itself), then the key detail: who, what, when. Name which kid or person when the source says. If sources disagree, say so. If nothing below answers it, say you couldn't find it and suggest where she might check. 1-3 short sentences, plain words.
-Return JSON: {"answer":"...","refs":["E2","C5"]} listing the ids you actually used (most important first, max 3).
+Also list up to 3 "actions": things from your answer she could add to remembrd. "todo" = something she has to do (sign, submit, pay, bring, register); "due" is the deadline as YYYY-MM-DD (work out "within 30 days" etc. from the source date), or null if there's none. "event" = something happening at a set date (a meeting, game, practice, deadline-free event); give "date" YYYY-MM-DD, "start"/"end" 24h "HH:MM" or null for all day, and "location". Short titles, under 8 words, verb first for to-dos. "ref" is the source id it came from. Skip anything already in a CALENDAR or REMEMBRD source, and skip dates in the past. "category" is one of: ${getCats().join(", ")}.
+Return JSON: {"answer":"...","refs":["E2","C5"],"actions":[{"type":"todo","title":"...","due":"YYYY-MM-DD" or null,"ref":"E2","category":"..."},{"type":"event","title":"...","date":"YYYY-MM-DD","start":"HH:MM" or null,"end":"HH:MM" or null,"location":"","ref":"E2","category":"..."}]} with refs listing the ids you actually used (most important first, max 3). Use "actions":[] when there's nothing to add.
 
 QUESTION: ${q}
 
 SOURCES:
 ${L.length?L.join("\n\n"):"(none)"}`,[],t=>{A.stage=t.replace("reading your note","reading what it found");render()});
     const used=(Array.isArray(r.refs)?r.refs:[]).map(String).filter(id=>refs[id]).slice(0,3);
-    A.res={q,answer:String(r.answer||"I couldn't find an answer.").slice(0,600),srcs:used.map(id=>refs[id])};
+    const YMD=/^\d{4}-\d{2}-\d{2}$/,HM=/^\d{1,2}:\d{2}$/,today2=todayStr();
+    const acts=(Array.isArray(r.actions)?r.actions:[]).slice(0,3).map(x=>{if(!x||!x.title)return null;const src=refs[String(x.ref||"")]||null,title=String(x.title).slice(0,100);
+      if(x.type==="event"){if(!YMD.test(String(x.date||""))||x.date<today2)return null;
+        return {type:"event",title,date:x.date,start:HM.test(String(x.start||""))?String(x.start).padStart(5,"0"):null,end:HM.test(String(x.end||""))?String(x.end).padStart(5,"0"):null,location:String(x.location||"").slice(0,200),category:String(x.category||""),src}}
+      return {type:"todo",title,due:YMD.test(String(x.due||""))&&x.due>=today2?x.due:today2,category:String(x.category||""),src}}).filter(Boolean);
+    A.res={q,answer:String(r.answer||"I couldn't find an answer.").slice(0,600),srcs:used.map(id=>refs[id]),acts};
     if(!google&&gcOn())A.res.answer+=" (Google needs a reconnect, so only your saved notes were checked.)";
   }catch(e){console.warn("ask",e);A.err=e&&e.code==="noauth"?"Google needs a quick reconnect before remembrd can search. Tap Reconnect above.":errCopy(e).replace(/ remembrd will retry on its own\.?/,"")+""}
   finally{A.busy=false;render()}
@@ -2098,6 +2128,7 @@ document.addEventListener("click",e=>{
   else if(a==="prepchk")prepCheck(v);
   else if(a==="prepsend")prepSend();
   else if(a==="askclear"){A.res=null;A.err="";A.q="";render()}
+  else if(a==="askadd")askAdd(v);
   else if(a==="askex"){A.q=v;askRun()}
   else if(a==="dupdel")dupDelete(v);
   else if(a==="dupok"){const k=lsGet("dup_ok",[]);k.push(v);lsSet("dup_ok",k.slice(-200));render()}
