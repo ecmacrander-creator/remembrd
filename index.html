@@ -150,6 +150,14 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 .wkday .wk:first-child,.note>.wk:first-child{border-top:0;padding-top:2px}
 .wk .tm{flex:none;width:62px;font-size:12.5px;font-weight:700;color:var(--ink-2);padding-top:2px}
 .wk .info{flex:1;min-width:0}
+.qsec{margin-top:14px;border:1.5px solid var(--accent);border-radius:var(--r);padding:12px 14px;background:var(--surface);box-shadow:var(--shadow)}
+.qsec h2{font-size:17px;margin-bottom:6px}
+.qitem+.qitem{border-top:1px solid var(--surface-2);margin-top:10px;padding-top:10px}
+.qnote{font-size:12.5px;font-weight:700;color:var(--ink-3)}
+.qbox{margin-top:6px}
+.qt{font-weight:700;font-size:15px;line-height:1.35}
+.qopts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+.qopts .btn{min-height:34px;padding:5px 12px}
 .evdet{padding:0 0 9px 74px;margin-top:-4px}
 .dchip{border:1px solid var(--accent);background:none;color:var(--accent);border-radius:999px;font-weight:700;font-size:12.5px;padding:3px 10px;min-height:28px}
 .dchip[aria-expanded="true"]{background:var(--accent);color:var(--accent-ink)}
@@ -845,7 +853,7 @@ function buildPrompt(note,hasImages){
 RIGHT NOW: ${nowContext()}.
 
 CATEGORIES (use one of these when it fits): ${JSON.stringify(getCats())}
-If none of them fits well, create ONE new short category (1-2 words, Title Case, general enough to reuse, like "Doctor", "Kids", "Finance", "Travel"). Prefer existing categories. Baseball covers games, practices, tournaments, team snacks and fees. Scouts covers Cub Scouts, Pack 455, dens, den and pack meetings, adventures and badges; den leaders are Jessica (Arthur's den) and Lee Jones / Leslie Jones (Emmett's den), so anything from or about them is Scouts. Church covers services, small groups, volunteering and church events. "AEC", "Agriculture Education Committee" or "Ag Ed" is her rodeo committee (a volunteer group, not her job): always use "Rodeo" for it, never "Work".
+If none of them fits well, create ONE new short category (1-2 words, Title Case, general enough to reuse, like "Doctor", "Kids", "Finance", "Travel"). Prefer existing categories. Baseball covers games, practices, tournaments, team snacks and fees. Scouts covers Cub Scouts, Pack 455, dens, den and pack meetings, adventures and badges; den leaders are Jessica (Arthur's den) and Lee Jones / Leslie Jones (Emmett's den). Jessica is ALSO a close family friend: dinner invites, hangouts and personal plans with Jessica are NOT Scouts and not Arthur's; only call it Scouts when the item is clearly about scouts. Church covers services, small groups, volunteering and church events. "AEC", "Agriculture Education Committee" or "Ag Ed" is her rodeo committee (a volunteer group, not her job): always use "Rodeo" for it, never "Work".
 ${catGuide()}
 NOTE TEXT: ${note.text?JSON.stringify(note.text):"(none, screenshot only)"}
 
@@ -859,6 +867,7 @@ RULES:
 - "task": if the note is something she has to DO (a chore, errand, reminder, bill, medication, form, call to make) rather than an event to attend, return a to-do: {"title": short imperative like "Give dogs heartworm meds", "due": "YYYY-MM-DD", "repeat": null or "daily" | "weekly" | "monthly" | "yearly"}. For repeating to-dos ("on the 15th of every month", "every Tuesday", "each year on May 1"), set repeat and make "due" the next occurrence on or after today (today counts). For a one-time to-do with a date, use that date; with no date, use today. Use "task" only for a to-do that stands on its own with no event behind it; a to-do tied to an event goes in that event's "todo". Don't repeat the same to-do in both places. Otherwise "task": null.
 - STANDING INFO IS NOT A TO-DO: rules, policies and reference info that apply over and over with no one-time action or deadline (dress code like "wear uniforms to den and pack meetings", pickup times, gate codes, sizes, contacts, what a group always does) go in "facts", never in "task" or an event "todo". An event "todo" must be specific to that one event (e.g. "Bring a pumpkin Friday"), not a general rule.
 - "facts": up to 5 short standing-info statements from the note, each a full sentence that makes sense alone, like "Wear Cub Scout uniforms to den and pack meetings" or "Pack 455 dues are $40 a year". Empty list if none.
+- "question": if you are genuinely unsure which category it belongs in or which person it's for (kids: ${kidsPrompt()}), DON'T GUESS: still give your best guess above, and ask her one short question: {"about":"category" or "who","text":"short plain question, like: Is dinner at Jessica's a scouts thing or personal?","options":[2-4 short choices; for "category" use category names, for "who" use names from ${JSON.stringify(peopleNames())} or "Both kids"]}. Otherwise null. Don't ask when it's clear.
 - Task "who": "partner" if the note says it's for her husband/partner${partnerName()!=="Partner"?" ("+partnerName()+")":""} to do (e.g. "remind ${partnerName()!=="Partner"?partnerName():"him"} to…", "${partnerName()!=="Partner"?partnerName():"he"} needs to…"), otherwise "me".
 
 Reply with ONLY JSON:
@@ -974,6 +983,7 @@ async function sortNote(id,blobs){
     const r=await geminiJSON(buildPrompt(n,blobs.length>0),blobs,t=>setProg(id,t),ctl.signal);
     if(!n.catSet||!getCats().includes(n.category))n.category=addCat(r.category||"Home");
     n.title=String(r.title||"").slice(0,90);
+    const qq=r.question;n.q=qq&&qq.text&&Array.isArray(qq.options)&&qq.options.length>1&&!n.catSet&&!(qq.about==="who"&&n.peopleSet)?{about:qq.about==="who"?"who":"category",text:String(qq.text).slice(0,160),options:qq.options.slice(0,4).map(o=>String(o).slice(0,30))}:null;
     n.summary=blobs.length?String(r.summary||"").slice(0,800):"";
     n.events=(Array.isArray(r.events)?r.events:[]).filter(e=>e&&/^\d{4}-\d{2}-\d{2}$/.test(String(e.date))).slice(0,25).map(e=>({
       id:uid(),title:String(e.title||n.title||"Event").slice(0,120),date:String(e.date),
@@ -1655,7 +1665,9 @@ function kidNames(){const v=lsGet("kids",null);return Array.isArray(v)?v.filter(
 const KID_COLORS=["#2F7FC1","#2E9B5F","#C2478E","#E0702C","#7B5CC4"];
 function kidColor(k){const i=kidNames().indexOf(k);return KID_COLORS[(i<0?0:i)%KID_COLORS.length]}
 // clues: teachers, teams, activities that mean an item is for that kid
-const KID_CLUES_DEFAULT={Emmett:["Sweeney","robotics","Lee Jones","Leslie Jones"],Arthur:["Barton","baseball","Little League","Jessica"]};
+const KID_CLUES_DEFAULT={Emmett:["Sweeney","robotics","Lee Jones","Leslie Jones"],Arthur:["Barton","baseball","Little League"]};
+// names that only point to a kid in the right context (Jessica is Arthur's den leader AND a close friend)
+const CONTEXT_CLUES={Arthur:[{w:/\bJessica\b/i,ctx:/\b(scouts?|cub|den|pack|bobcat|tigers?|adventures?|badges?|uniforms?)\b/i}]};
 function kidClues(k){const c=lsGet("kid_clues",null)||KID_CLUES_DEFAULT;return Array.isArray(c[k])?c[k]:[]}
 function setKidClues(k,list){const c={...(lsGet("kid_clues",null)||KID_CLUES_DEFAULT)};c[k]=list;lsSet("kid_clues",c)}
 const reEsc=v=>String(v).replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
@@ -1664,8 +1676,8 @@ function kidRe(k){
   const stems=kidClues(k).map(c=>c.trim()).filter(c=>c.length>1).map(c=>c.length>4?c.replace(/s$/i,""):c);
   return new RegExp("\\b("+[reEsc(k),...stems.map(c=>reEsc(c)+"\\w*")].join("|")+")\\b","i");
 }
-function kidsIn(text){const t=String(text||"");return kidNames().filter(k=>kidRe(k).test(t))}
-function kidsPrompt(){return kidNames().map(k=>{const c=kidClues(k);return c.length?`${k} (${c.join(", ")})`:k}).join("; ")}
+function kidsIn(text){const t=String(text||"");return kidNames().filter(k=>kidRe(k).test(t)||(CONTEXT_CLUES[k]||[]).some(c=>c.w.test(t)&&c.ctx.test(t)))}
+function kidsPrompt(){return kidNames().map(k=>{const c=kidClues(k);return c.length?`${k} (${c.join(", ")})`:k}).join("; ")+". Jessica is Arthur's den leader but also a close family friend: only connect her to Arthur or Scouts when it's clearly about scouts. Lee Jones and Leslie Jones are Emmett's den leaders"}
 function rowKids(r){
   const x=r.x;
   if((r.src==="rem"||r.src==="task")&&x.n){const ps=peopleSrc(x.n);if(ps)return okPeople(ps.people);
@@ -1871,7 +1883,7 @@ function todayLeft(rows){
 }
 const tomorrowFirst=rows=>{const h=new Date().getHours();return h>=20||(h>=17&&!todayLeft(rows))};
 function todayHTML(){
-  let html=captureHTML()+kidChips()+todayTasksHTML();
+  let html=captureHTML()+questionsHTML()+kidChips()+todayTasksHTML();
   html+=`<div class="tdyhead"><h2>Today &amp; tomorrow</h2><span>${esc(new Date().toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</span></div>`;
   if(gcOn())html+=`<p class="hint calst" style="margin-top:0">${syncLine()}</p>${W.err&&W.err!=="email"?`<div class="err">${esc(W.err)}</div>`:""}`;
   else html+=`<div class="keycard"><h2>Connect Google</h2><p class="hint" style="margin-top:2px">Connect Google in Settings to see your calendar and email dates here.</p><button class="btn primary" data-act="settings" style="margin-top:10px;width:100%">Open Settings</button></div>`;
@@ -2063,12 +2075,26 @@ function captureHTML(){
   </section>
   ${getKey()?"":`<div class="keycard"><h2>One-time setup</h2><p class="hint" style="margin-top:2px">Add your free Gemini key so remembrd can sort notes, find dates and read screenshots. Notes still save without it.</p><button class="btn primary" data-act="settings" style="margin-top:10px;width:100%">Add Gemini key</button></div>`}`;
 }
+/* ---------- questions remembrd asks instead of guessing ---------- */
+function qHTML(n){const q=n.q;return `<div class="qbox"><div class="qt">${esc(q.text)}</div><div class="qopts">${q.options.map((o,i)=>`<button class="btn ghost" data-act="qans" data-id="${n.id}" data-v="${i}">${esc(o)}</button>`).join("")}<button class="linkbtn" data-act="qskip" data-id="${n.id}">Skip</button></div></div>`}
+function questionsHTML(){
+  const l=S.notes.filter(n=>n.q&&!n.parent).slice(0,3);if(!l.length)return "";
+  return `<section class="qsec"><h2>Quick question${l.length>1?"s":""}</h2>${l.map(n=>`<div class="qitem"><div class="qnote">${esc(n.title||String(n.text||"").slice(0,60))}</div>${qHTML(n)}</div>`).join("")}</section>`;
+}
+async function answerQ(id,i){
+  const n=S.notes.find(x=>x.id===id);if(!n||!n.q)return;const o=n.q.options[+i];if(o==null)return;
+  if(n.q.about==="category")await setNoteCat(n,addCat(o));
+  else{const names=peopleNames(),hit=names.find(p=>p.toLowerCase()===o.toLowerCase());
+    n.people=hit?[hit]:/both/i.test(o)?kidNames():[meName()];n.peopleSet=true;n.peopleManual=true;syncWho(n)}
+  n.q=null;await putNote(n);render();toast("Got it");
+}
 function noteHTML(n){
   const c=n.category;
   return `<article class="note">
     <div class="nhead">${n.status==="sorting"?`<span class="sorting"><span class="spinner"></span>Sorting</span>`:catPill(n)}
       ${n.status==="sorting"?"":whoBtn(notePeople(n),`data-act="who" data-id="${n.id}"`)+noteTag(n)}<span class="t">${esc(fmtTime(n.createdAt))}</span></div>
     ${n.title?`<h3>${esc(n.title)}</h3>`:""}
+    ${n.q?qHTML(n):""}
     ${n.status==="sorting"?progHTML(n.id):""}
     ${n.text?`<div class="ntext">${esc(n.text)}</div>`:""}
     ${n.summary?`<div class="ntext">${esc(n.summary)}</div>`:""}
@@ -2291,6 +2317,8 @@ document.addEventListener("click",e=>{
   else if(a==="mtuck"){const n=S.notes.find(x=>x.id===b.dataset.id);closeSheet();if(n&&n.task){const ev=taskEvent(n);if(ev){n.task.onEvent=ev;n.task.onEventManual=true;putNote(n);render();toast(`Moved to ${ev.title.slice(0,40)}. You'll see it with the event.`)}}}
   else if(a==="mface"){const n=S.notes.find(x=>x.id===b.dataset.id);closeSheet();if(n&&n.task){delete n.task.onEvent;n.task.onEventManual=true;putNote(n);render();toast("Back in your to-dos")}}
   else if(a==="mdetail")moveToDetails(b.dataset.id);
+  else if(a==="qans")answerQ(b.dataset.id,v);
+  else if(a==="qskip"){const n=S.notes.find(x=>x.id===b.dataset.id);if(n){n.q=null;putNote(n);render()}}
   else if(a==="evdet"){S.detOpen=S.detOpen||new Set();S.detOpen.has(v)?S.detOpen.delete(v):S.detOpen.add(v);render()}
   else if(a==="mshare"){const id=b.dataset.id;closeSheet();shareTask(id)}
   else if(a==="medit"){const id=b.dataset.id;closeSheet();openEdit(id)}
@@ -2354,9 +2382,11 @@ render();
     let mchg=false;(W.mail.items||[]).forEach(m=>{if(m.category==="Work"&&AEC.test(m.title+" "+m.details+" "+m.subject+" "+m.from)){m.category="Rodeo";mchg=true}});if(mchg)lsSet("week_mail",W.mail);
   }catch(e){console.warn("no storage",e);toast("Notes can't be saved in this browser (private browsing?)")}
   S.ready=true;
+  // Jessica only means Arthur in a scouts context (handled by CONTEXT_CLUES), not as a plain clue
+  {const c=lsGet("kid_clues",null);if(c&&Object.values(c).some(l=>Array.isArray(l)&&l.includes("Jessica"))){for(const k in c)if(Array.isArray(c[k]))c[k]=c[k].filter(x=>x!=="Jessica");lsSet("kid_clues",c)}}
   // scouts: leaders as kid clues, its own category
   if(!lsGet("mig_scouts_v1",false)){
-    const c=lsGet("kid_clues",null);if(c){const add={Emmett:["Lee Jones","Leslie Jones"],Arthur:["Jessica"]};for(const k in add){c[k]=[...new Set([...(c[k]||[]),...add[k]])]}lsSet("kid_clues",c)}
+    const c=lsGet("kid_clues",null);if(c){const add={Emmett:["Lee Jones","Leslie Jones"]};for(const k in add){c[k]=[...new Set([...(c[k]||[]),...add[k]])]}lsSet("kid_clues",c)}
     addCat("Scouts");const SC=/\b(scouts?|cub scout|pack 455|den meeting|pack meeting|bobcat|tigers den|den 7|Lee Jones|Leslie Jones)\b/i;
     for(const n of S.notes){const r=rootNote(n);if(r.catSet||!["School","Home"].includes(n.category))continue;
       if(SC.test([r.title,r.text,r.summary,...(r.events||[]).map(e=>e.title+" "+e.details),n.title,n.task&&n.task.title].join(" "))){n.category="Scouts";await putNote(n)}}
