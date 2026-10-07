@@ -1416,7 +1416,9 @@ function mailBody(payload){
   let t=plain||html.replace(/<(style|script)[\s\S]*?<\/\1>/gi," ").replace(/<br\s*\/?>|<\/(p|div|tr|li|h\d)>/gi,"\n").replace(/<[^>]+>/g," ").replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&#39;|&rsquo;/g,"'").replace(/&quot;|&ldquo;|&rdquo;/g,'"');
   return t.replace(/[ \t]+/g," ").replace(/\n\s*\n+/g,"\n").trim();
 }
-const MAIL_Q='newer_than:8d -category:promotions -category:social -from:substack.com -from:linkedin.com -from:vinted.com -from:zillow.com -from:restoreaustin.org ("room parent" OR "Barton Bunch" OR "Pack 455" OR scout OR scouts OR from:restorehouston.org OR from:planningcenteronline.com OR agriculture OR "ag committee" OR Kolter OR "little league" OR is:important)';
+const MAIL_Q='newer_than:8d -category:promotions -category:social -from:substack.com -from:linkedin.com -from:vinted.com -from:zillow.com -from:restoreaustin.org ("room parent" OR "Barton Bunch" OR "Pack 455" OR scout OR scouts OR from:restorehouston.org OR from:planningcenteronline.com OR agriculture OR "ag committee" OR Kolter OR "little league" OR HLSR OR "Houston Livestock Show" OR rodeohouston OR is:important)';
+// HLSR (Houston Livestock Show and Rodeo): pull to-dos only, never events
+const HLSR=/\b(HLSR|Houston Livestock Show|Rodeo ?Houston)\b/i;
 async function weekMail(force){
   if(!hasGmail()||!getKey()||W.mailBusy||!force&&Date.now()-W.mail.at<6*36e5)return;
   W.mailBusy=true;W.stage="Looking through your email";render();
@@ -1437,6 +1439,7 @@ Pull out every specific upcoming thing she needs to know or act on from today th
 Room-parent emails often end with a "Key Dates" section; include those. Resolve words like "Friday" or "next week" relative to the date the email was sent. One item per distinct thing; if several emails mention the same event, list it once.
 Return JSON: {"items":[{"msg":<email number>,"title":"short title that makes sense on a calendar by itself","date":"YYYY-MM-DD, or null if there is truly no date","start":"HH:MM 24-hour or null","end":"HH:MM or null","location":"","details":"one short sentence: what to do, bring or know","kind":"event" or "todo","todo":for an event that comes with something she must do for it (bring, donate, pay, buy, sign, send, wear, RSVP, sign up), {"title":"short imperative naming who or what it's for","due":"YYYY-MM-DD deadline if stated, else the event date"}, otherwise null,"category":"one of ${getCats().join(", ")}, or a short new category"}]}
 ${catGuide()}
+HLSR (Houston Livestock Show and Rodeo, RodeoHouston) emails: list ONLY things she must do (sign, acknowledge, submit, register, pay, complete training) as kind "todo" with the deadline as "date"; work out "within 30 days" from the sent date. Never list HLSR events, shifts, meetings or show dates. Category Rodeo.
 If nothing qualifies, return {"items":[]}.
 
 ${mails.map((m,i)=>`=== EMAIL ${i+1}\nFrom: ${m.from}\nSent: ${m.date}\nSubject: ${m.subject}\n${m.body}`).join("\n\n")}`;
@@ -1449,7 +1452,11 @@ ${mails.map((m,i)=>`=== EMAIL ${i+1}\nFrom: ${m.from}\nSent: ${m.date}\nSubject:
           category:String(x.category||"").slice(0,24),todo:x.kind!=="todo"&&x.todo&&x.todo.title?{title:String(x.todo.title).slice(0,120),due:/^\d{4}-\d{2}-\d{2}$/.test(String(x.todo.due||""))?String(x.todo.due):null}:null,msgId:m.id||"",subject:String(m.subject||"").slice(0,140),from:String(m.from||"").replace(/\s*<.*>$/,"").replace(/"/g,"").slice(0,60)};
         // keep what she already did with this item last time
         const prev=old.find(o=>o.title.toLowerCase()===it.title.toLowerCase()&&o.date===it.date);if(prev){it.hidden=prev.hidden;it.added=prev.added;it.saved=prev.saved}
-        return it}).filter(x=>x.title&&(!x.date||x.date>=todayStr()));
+        // HLSR: keep to-dos only; an event that carries a to-do becomes just the to-do
+        if(HLSR.test([m.from,m.subject,it.title,it.details].join(" "))&&it.kind!=="todo"){
+          if(!it.todo)return null;
+          Object.assign(it,{title:it.todo.title,date:it.todo.due||it.date,start:null,end:null,location:"",kind:"todo",todo:null})}
+        return it}).filter(x=>x&&x.title&&(!x.date||x.date>=todayStr()));
     }
     W.mail={at:Date.now(),items};lsSet("week_mail",W.mail);
   }catch(e){console.warn("week mail",e);
