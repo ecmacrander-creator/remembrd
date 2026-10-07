@@ -149,7 +149,14 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 .wk{display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--surface-2)}
 .wkday .wk:first-child,.note>.wk:first-child{border-top:0;padding-top:2px}
 .wk .tm{flex:none;width:62px;font-size:12.5px;font-weight:700;color:var(--ink-2);padding-top:2px}
-.wk .info{flex:1;min-width:0}.wk .info b{display:block;font-size:14.5px;line-height:1.3}
+.wk .info{flex:1;min-width:0}
+.evdet{padding:0 0 9px 74px;margin-top:-4px}
+.dchip{border:1px solid var(--accent);background:none;color:var(--accent);border-radius:999px;font-weight:700;font-size:12.5px;padding:3px 10px;min-height:28px}
+.dchip[aria-expanded="true"]{background:var(--accent);color:var(--accent-ink)}
+.detlist{list-style:none;margin:8px 0 0;padding:10px 12px;background:var(--surface-2);border-radius:12px;display:flex;flex-direction:column;gap:8px}
+.detlist li{display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:1.4}
+.detlist .dot{flex:none;width:8px;height:8px;border-radius:50%;margin-top:6px}
+.detlist em{display:block;font-style:normal;color:var(--ink-3);font-size:13px;margin-top:2px}.wk .info b{display:block;font-size:14.5px;line-height:1.3}
 .wk .info span{display:block;font-size:13px;color:var(--ink-2);margin-top:1px}
 .wk .src{display:flex!important;align-items:center;gap:5px;flex-wrap:wrap}
 .wk .src a{color:inherit;text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}
@@ -1531,7 +1538,29 @@ function remTodoLine(n,x){
   const t=all.find(c=>c.task.due===x.date&&titleMatch(c.task.title,x.title))||all.find(c=>c.task.due<=x.date&&titleMatch(c.task.title,x.title))||all.find(c=>c.task.due===x.date);
   return t?`<span class="todoline">☐ To do: ${esc(t.task.title)}</span>`:"";
 }
-function wkRowHTML(row){
+/* ---------- Details linked to an event: "+ N details" under the event ---------- */
+const DETGEN=new Set(["meeting","event","day","night","time","school","class","week","today","tomorrow"]);
+function evDetails(row){
+  if(row.src==="task")return [];
+  const x=row.x,ttl=x.title||"",own=row.src==="rem"&&x.n?x.n.id:null;
+  const ew=new Set(words([ttl,x.location||""].join(" ")));if(!ew.size&&!own)return [];
+  return S.notes.filter(isDetail).filter(d=>{
+    if(own&&(d.parent===own||d.id===own))return d.id!==own;
+    const dw=new Set(words([d.title,d.text,d.summary].join(" ")));let k=0,strong=0;
+    ew.forEach(w=>{if(dw.has(w)){k++;if(!DETGEN.has(w))strong++}});
+    return k>=2&&strong>=1;
+  }).slice(0,5);
+}
+const evDetKey=row=>{const x=row.x;return row.src==="rem"?"r:"+x.n.id+":"+(x.ev&&x.ev.id):row.src==="cal"?"c:"+(x.id||x.title)+":"+x.date:"m:"+(x.msgId||"")+":"+x.title};
+function evDetHTML(row){
+  const list=evDetails(row);if(!list.length)return "";
+  const k=evDetKey(row),open=S.detOpen&&S.detOpen.has(k);
+  let h=`<div class="evdet"><button class="dchip" data-act="evdet" data-v="${esc(k)}" aria-expanded="${!!open}">${open?"−":"+"} ${list.length} detail${list.length===1?"":"s"}</button>`;
+  if(open)h+=`<ul class="detlist">${list.map(d=>`<li><span class="dot" style="background:${catColor(d.category)}"></span><span>${esc(d.title||d.text)}${d.summary?`<em>${esc(d.summary.slice(0,200))}</em>`:d.text&&d.text!==d.title&&!d.fact?`<em>${esc(d.text.slice(0,200))}</em>`:""}</span></li>`).join("")}</ul>`;
+  return h+`</div>`;
+}
+function wkRowHTML(row){return wkRowHTML0(row)+evDetHTML(row)}
+function wkRowHTML0(row){
   const x=row.x,rk=rowKids(row),kb=row.src==="mail"?kidBadges(rk):row.src==="cal"?whoBtn(rk,`data-act="whocal" data-v="${esc(calPKey(x))}" data-t="${esc(x.title)}"`):whoBtn(rk,`data-act="who" data-id="${x.n.id}"`);
   if(row.src==="mail")return `<div class="wk mail"><div class="tm">${x.date?esc(x.kind==="todo"&&!x.start?"Due":tLabel(x)):"Anytime"}</div>
     <div class="info"><b>${esc(x.title)}</b>${x.details?`<span>${esc(x.details)}</span>`:""}${todoLine(x.todo,x.date)}<span class="src">${kb}${srcTag("gmail",x.subject||x.from||"",mailLink(x))}<em>Not on your calendar</em></span>
@@ -2246,6 +2275,7 @@ document.addEventListener("click",e=>{
   else if(a==="mtuck"){const n=S.notes.find(x=>x.id===b.dataset.id);closeSheet();if(n&&n.task){const ev=taskEvent(n);if(ev){n.task.onEvent=ev;n.task.onEventManual=true;putNote(n);render();toast(`Moved to ${ev.title.slice(0,40)}. You'll see it with the event.`)}}}
   else if(a==="mface"){const n=S.notes.find(x=>x.id===b.dataset.id);closeSheet();if(n&&n.task){delete n.task.onEvent;n.task.onEventManual=true;putNote(n);render();toast("Back in your to-dos")}}
   else if(a==="mdetail")moveToDetails(b.dataset.id);
+  else if(a==="evdet"){S.detOpen=S.detOpen||new Set();S.detOpen.has(v)?S.detOpen.delete(v):S.detOpen.add(v);render()}
   else if(a==="mshare"){const id=b.dataset.id;closeSheet();shareTask(id)}
   else if(a==="medit"){const id=b.dataset.id;closeSheet();openEdit(id)}
   else if(a==="mrm"){const id=b.dataset.id;closeSheet();tryRemove(id,null)}
