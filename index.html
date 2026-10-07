@@ -682,7 +682,7 @@ ${lines.join("\n")}`,[]);
       const due=/^\d{4}-\d{2}-\d{2}$/.test(String(x.due||""))?String(x.due):c.date;
       const ck=((c.calId||"")+"/"+(c.id||c.title)+"|"+normT(title)).slice(0,220);
       if(gone.has(ck)||S.notes.some(n=>n.calKey===ck))continue;
-      if(S.notes.some(n=>n.task&&!n.task.doneAt&&Math.abs(parseYmd(n.task.due)-parseYmd(due))<=864e5&&titleMatch(n.task.title,title)))continue;
+      if(S.notes.some(n=>n.task&&!n.task.doneAt&&Math.abs(parseYmd(n.task.due)-parseYmd(due))<=864e5&&titleMatch(n.task.title,title))||findDupTask({title,due}))continue;
       const t=makeTask({title,due},title),own=calOwner(c.calId);t.who=own===partnerName()?"partner":"me";
       const n={id:uid(),createdAt:new Date().toISOString(),text:"From your calendar: "+c.title+(c.desc?"\n"+c.desc.slice(0,300):""),title,summary:"",category:addCat(x.category||"Home"),images:[],events:[],status:"sorted",source:"cal",fromCal:true,calKey:ck,calId:c.calId||"",calLink:c.link||"",task:t};
       if(own&&own!==meName()&&own!==partnerName()){n.people=[own];n.peopleSet=true}
@@ -852,6 +852,29 @@ Example to-do reply: {"category":"Home","newCategory":false,"title":"Dogs' heart
 
 /* ---------- extra to-dos from one note (each lives in a small linked note) ---------- */
 const kidsOf=n=>S.notes.filter(c=>c.parent===n.id);
+/* ---------- duplicate to-dos ---------- */
+// same to-do = near-identical wording and due within a day (or both repeating)
+function isDupTask(a,b){
+  if(!a||!b)return false;
+  let same=normT(a.title)===normT(b.title);
+  if(!same){const A=new Set(words(a.title)),B=new Set(words(b.title));if(A.size&&B.size){let k=0;A.forEach(w=>{if(B.has(w))k++});same=k/Math.max(A.size,B.size)>=0.75}}
+  if(!same)return false;
+  if(a.repeat&&b.repeat)return true;
+  return Math.abs(parseYmd(a.due)-parseYmd(b.due))<=864e5;
+}
+const findDupTask=(t,skip)=>S.notes.find(n=>!(skip&&skip.has(n.id))&&n.task&&!n.task.doneAt&&isDupTask(n.task,t));
+// keep the to-do that's on Google Calendar (or the oldest); clear the rest
+async function dedupeTasks(){
+  const open=S.notes.filter(n=>n.task&&!n.task.doneAt).sort((a,b)=>(!!b.task.added-!!a.task.added)||(a.createdAt<b.createdAt?-1:1));
+  const kept=[];let gone=0;
+  for(const n of open){
+    if(!kept.some(k=>isDupTask(k.task,n.task))){kept.push(n);continue}
+    gone++;
+    if(n.parent){S.notes=S.notes.filter(x=>x!==n);delNote(n.id)}
+    else{n.task=null;await putNote(n)}
+  }
+  return gone;
+}
 async function syncKids(n,raws){
   const old=kidsOf(n),keep=new Set();
   for(const raw of raws){
@@ -914,16 +937,20 @@ async function sortNote(id,blobs){
     const rawTodos=[r.task&&r.task.title?r.task:null,...evTodos].filter(Boolean).filter((t,i,a)=>a.findIndex(o=>String(o.title).toLowerCase()===String(t.title).toLowerCase())===i&&!gone.has(String(t.title).toLowerCase()));
     const firstRaw=rawTodos[0]||null,fromEvent=!!firstRaw&&firstRaw!==r.task;
     let nt=makeTask(firstRaw,n.title);if(nt&&gone.has(nt.title.toLowerCase()))nt=null;
+    const mine=new Set([n.id,...kidsOf(n).map(k=>k.id)]);let skipped=0;
+    if(nt&&!(n.task&&isDupTask(n.task,nt))&&findDupTask(nt,mine)){nt=null;skipped++}
     if(nt){nt.who=!fromEvent&&r.task&&r.task.who==="partner"?"partner":"me";if(n.task){nt.log=n.task.log||[];nt.added=n.task.added;nt.doneAt=n.task.title.toLowerCase()===nt.title.toLowerCase()?n.task.doneAt:null;if(n.task.whoSet){nt.who=n.task.who;nt.whoSet=true}}n.task=nt;
       // a stand-alone to-do shouldn't also show as a same-day event; a to-do from an event keeps its event
       if(!fromEvent){const tk=nt.title.toLowerCase();n.events=n.events.filter(e=>!(e.date===nt.due&&e.title.toLowerCase().split(/\W+/).some(w=>w.length>3&&tk.includes(w))))}}
-    await syncKids(n,rawTodos.slice(1));
+    const extra=rawTodos.slice(1).filter(raw=>{const t=makeTask(raw,raw.title);if(t&&!kidsOf(n).some(k=>k.task&&isDupTask(k.task,t))&&findDupTask(t,mine)){skipped++;return false}return true});
+    await syncKids(n,extra);
     n.status="sorted";
     const nTodo=(nt?1:0)+kidsOf(n).length;
     if(nTodo&&n.events.length)toast(`Found ${n.events.length===1?"a date":n.events.length+" dates"} and ${nTodo===1?"a to-do":nTodo+" to-dos"}`);
     else if(nt&&nTodo>1)toast(`${nTodo} to-dos saved`);
     else if(nt)toast(nt.repeat?`To-do saved. ${repeatLabel(nt)}.`:"To-do saved. It'll stay at the top until you check it off.");
     else if(n.events.length)toast(n.events.length===1?"Found a date. Tap Add to put it on your calendar.":`Found ${n.events.length} dates`);
+    else if(skipped)toast(skipped===1?"That to-do is already on your list":`Those ${skipped} to-dos are already on your list`);
   }catch(e){if(e&&e.code==="cancelled"||!S.notes.includes(n)){delete ABORT[id];stopProg(id);return}console.error(e);n.status="unsorted";n.err=errCopy(e);n.retry=!!(e&&RETRYABLE.has(e.code));if(n.retry)scheduleRetry();if(e&&e.code==="bad_key")openSettings()}
   if(n.status==="sorted")n.retry=false;
   delete ABORT[id];stopProg(id);
@@ -1524,9 +1551,9 @@ function weekCal(i){
 async function weekSave(i){
   const m=W.mail.items[i];if(!m)return;
   const n={id:uid(),createdAt:new Date().toISOString(),text:[m.details,m.subject?"From email: "+m.subject:""].filter(Boolean).join("\n"),title:m.title,summary:"",category:addCat(m.category||"Home"),images:[],events:[],status:"sorted",source:"gmail",msgId:m.msgId||""};
-  if(m.kind==="todo"||!m.date){const t=makeTask({title:m.title,due:m.date||todayStr()},m.title);t.who="me";n.task=t}
+  if(m.kind==="todo"||!m.date){const t=makeTask({title:m.title,due:m.date||todayStr()},m.title);if(findDupTask(t)){m.saved=true;weekPersist();render();toast("Already on your to-dos");return}t.who="me";n.task=t}
   else{n.events=[{id:uid(),title:m.title,date:m.date,start:m.start,end:m.end,endDate:null,location:m.location,details:m.details,added:!!m.added}];
-    if(m.todo){const t=makeTask({title:m.todo.title,due:m.todo.due||m.date},m.todo.title);t.who="me";n.task=t}}
+    if(m.todo){const t=makeTask({title:m.todo.title,due:m.todo.due||m.date},m.todo.title);if(!findDupTask(t)){t.who="me";n.task=t}}}
   S.notes.unshift(n);await putNote(n);m.saved=true;weekPersist();render();toast(n.task&&n.events.length?"Saved the date and its to-do":n.task?"Saved to your to-dos":"Saved to remembrd");gcCheck(false);
 }
 function weekHide(i){const m=W.mail.items[i];if(!m)return;m.hidden=true;weekPersist();render()}
@@ -2205,7 +2232,9 @@ render();
     for(const n of S.notes){const par=n.parent&&S.notes.find(x=>x.id===n.parent);if(par&&par.category==="Rodeo"&&n.category==="Work"){n.category="Rodeo";putNote(n)}}
     let mchg=false;(W.mail.items||[]).forEach(m=>{if(m.category==="Work"&&AEC.test(m.title+" "+m.details+" "+m.subject+" "+m.from)){m.category="Rodeo";mchg=true}});if(mchg)lsSet("week_mail",W.mail);
   }catch(e){console.warn("no storage",e);toast("Notes can't be saved in this browser (private browsing?)")}
-  S.ready=true;render();
+  S.ready=true;
+  try{const d=await dedupeTasks();if(d)toast(`Cleared ${d} duplicate to-do${d===1?"":"s"}`)}catch(e){console.warn("dedupe",e)}
+  render();
   if(gcBack==="ok"){const pend=takePending();if(pend.length){gcCals().catch(()=>{}).then(()=>addItems(pend))}else if(!lsGet("gcal_last",0))toast("Google connected");gcCheck(true);if(aggView())weekLoad(false)}
   else if(gcBack&&gcBack!=="state"&&(()=>{try{return sessionStorage.getItem("gcal_mode")==="manual"}catch(e){return false}})())toast("Google didn't connect. Try Connect Google again in Settings.");
   if(gcBack&&gcBack!=="ok")takePending();
