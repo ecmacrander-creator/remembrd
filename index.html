@@ -1754,6 +1754,14 @@ function briefHTML(){
   if(!list.length)return `<section class="brief"><h2>Heads up</h2><p class="hint" style="margin-top:4px">Nothing extra for ${esc(S.kid)}.</p></section>`;
   return `<section class="brief"><h2>Heads up</h2><ul>${list.map(it=>`<li><span>${esc(it.text)}</span><span style="display:flex;gap:6px;flex-wrap:wrap">${it.kid?kidBadges([it.kid]):""}${(it.srcs||[]).map(s=>srcTag(s.k,s.extra,s.href)).join("")}</span></li>`).join("")}</ul></section>`;
 }
+/* Evening: keep Today on top while anything timed is still ahead (ends after now). Flip to Tomorrow first once today is done, or after 8 PM. */
+function todayLeft(rows){
+  const now=hhmm(new Date());
+  return rows.some(r=>{if(r.src==="task")return false;const x=r.x;if(!x.start)return false;
+    let e=x.end||x.start;if(e<x.start)e="24:00";if(!x.end){const [h,m]=x.start.split(":").map(Number);e=pad(Math.min(h+1,24))+":"+pad(m)}
+    return e>now});
+}
+const tomorrowFirst=rows=>{const h=new Date().getHours();return h>=20||(h>=17&&!todayLeft(rows))};
 function todayHTML(){
   let html=captureHTML()+kidChips()+todayTasksHTML();
   html+=`<div class="tdyhead"><h2>Today &amp; tomorrow</h2><span>${esc(new Date().toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</span></div>`;
@@ -1763,7 +1771,7 @@ function todayHTML(){
   html+=eve?prepHTML():briefHTML();
   const M=weekModel();
   html+=mailBarHTML(mailCands(kidFilter([...M.days[0].rows,...M.days[1].rows])));
-  (eve?[1,0]:[0,1]).forEach(k=>{const {d}=M.days[k],rows=kidFilter(M.days[k].rows.filter(r=>r.src!=="task"));
+  (tomorrowFirst(M.days[0].rows)?[1,0]:[0,1]).forEach(k=>{const {d}=M.days[k],rows=kidFilter(M.days[k].rows.filter(r=>r.src!=="task"));
     html+=`<div class="day">${k?"Tomorrow":"Today"} · ${esc(parseYmd(d).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</div><article class="note wkday">${rows.length?rows.map(r=>wkRowHTML({...r,full:true})).join(""):`<p class="hint" style="margin:0">${S.kid==="all"?"Nothing scheduled":"Nothing for "+esc(S.kid)}</p>`}</article>`;
   });
   html+=dupHTML();
