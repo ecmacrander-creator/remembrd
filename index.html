@@ -212,6 +212,47 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spinner{animation-duration:3s}}
 .pad{height:48px}
+.vh{font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em}
+.stag{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;border-radius:6px;padding:1px 7px;background:var(--accent-soft);color:var(--accent);text-decoration:none!important;white-space:nowrap;max-width:100%;line-height:1.6}
+.stag .sx{font-weight:500;opacity:.85;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+.stag.s-gmail{background:var(--gm-bg);color:var(--gm-ink)}
+.stag.s-cal{background:var(--gc-bg);color:var(--gc-ink)}
+:root{--gm-bg:#FBE3DF;--gm-ink:#A12A1C;--gc-bg:#E0EBFA;--gc-ink:#1D57AE}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--gm-bg:#3A1F1B;--gm-ink:#F2A095;--gc-bg:#1B2738;--gc-ink:#9CC0F2}}
+:root[data-theme="dark"]{--gm-bg:#3A1F1B;--gm-ink:#F2A095;--gc-bg:#1B2738;--gc-ink:#9CC0F2}
+.wk .info .stag{display:inline-flex;margin-top:0}
+.wk .info .stag span,.wk .src .catl span{display:inline;margin:0;font-size:inherit;color:inherit}
+.wk .info .stag .sx{display:inline-block}
+.wk .src .catl{display:inline-flex;align-items:center;gap:5px}
+.wk .src .catl .dot{width:7px;height:7px;border-radius:50%}
+.wk .desc{color:var(--ink-3)!important;font-size:12.5px!important}
+.wk.task .tm{display:flex;align-items:flex-start}
+.wk .tick{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--accent);background:var(--surface);padding:0;cursor:pointer}
+.wk .over{color:var(--danger);font-weight:700}
+.ask{display:flex;gap:8px;margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 5px 5px 16px;box-shadow:var(--shadow);align-items:center}
+.ask input{flex:1;min-width:0;border:0;background:none;font-size:16px;color:var(--ink);padding:6px 0;outline:none}
+.ask input::placeholder{color:var(--ink-3)}
+.ask .btn{min-height:38px;padding:6px 16px}
+.answer{margin-top:10px;background:var(--surface);border:1.5px solid var(--accent);border-radius:var(--r);padding:12px 14px;box-shadow:var(--shadow)}
+.answer .aq{font-size:12.5px;color:var(--ink-3);font-weight:600}
+.answer p{margin:4px 0 0;font-size:15.5px;line-height:1.45}
+.answer .srcs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center}
+.answer .srcs .lbl2{font-size:12px;color:var(--ink-3);font-weight:700}
+.brief{margin-top:14px;background:var(--accent-soft);border-radius:var(--r);padding:13px 15px}
+.brief h2{font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px}
+.brief ul{margin:8px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.brief li{display:flex;flex-direction:column;gap:3px;font-size:15px;line-height:1.35;padding-left:14px;position:relative}
+.brief li::before{content:"";position:absolute;left:0;top:8px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.brief li .stag{align-self:flex-start}
+.dups{margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;box-shadow:var(--shadow)}
+.dups h2{font-size:17px;font-weight:800}
+.dpair{border-top:1px solid var(--surface-2);padding-top:10px;margin-top:10px}
+.dpair .dw{font-size:12px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.05em}
+.dcopy{display:flex;gap:10px;align-items:center;margin-top:6px}
+.dcopy .info{flex:1;min-width:0}.dcopy .info b{display:block;font-size:14.5px;line-height:1.3}
+.dcopy .info span{display:block;font-size:12.5px;color:var(--ink-3);margin-top:2px}
+.dcopy .btn{min-height:34px;padding:4px 12px;font-size:13px;flex:none}
+.dcopy .btn.armed{background:var(--danger);border-color:var(--danger);color:#fff}
 @media (max-width:380px){.row2{grid-template-columns:1fr}}
 </style>
 </head><body>
@@ -549,7 +590,7 @@ function tickProg(){document.querySelectorAll("[data-prog]").forEach(el=>{const 
 async function saveNote(){
   const text=S.draft.trim(),shots=S.shots.slice();
   if(!text&&!shots.length){toast("Type a note or add a screenshot");return}
-  const n={id:uid(),createdAt:new Date().toISOString(),text,title:"",summary:"",category:"",images:[],events:[],status:"sorting"};
+  const n={id:uid(),createdAt:new Date().toISOString(),text,title:"",summary:"",category:"",images:[],events:[],status:"sorting",source:shots.some(x=>x.cam)?"photo":shots.length?"shot":"note"};
   for(const s of shots){try{const id=uid();await putBlob(id,s.blob);urlCache[id]=s.url;n.images.push(id)}catch(e){console.warn(e)}}
   S.notes.unshift(n);S.draft="";S.shots=[];
   await putNote(n);render();
@@ -598,6 +639,8 @@ async function gcCals(){
 }
 const GCAL_SCOPE="https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.readonly";
 const GC={busy:false,cals:null};
+const GCAL_EDIT="https://www.googleapis.com/auth/calendar.events";
+const canEditCal=()=>/auth\/calendar\.events(\s|$)|auth\/calendar(\s|$)/.test(lsGet("gcal_scope","")||"");
 const gcRedirect=()=>location.origin+location.pathname;
 const GCAL_CLIENT_ID="518700755844-p1n5v0j19ii8ocpelbo2up45boku9hvg.apps.googleusercontent.com";
 function gcId(){return lsGet("gcal_client_id","")||GCAL_CLIENT_ID}
@@ -606,7 +649,7 @@ function gcOn(){return !!gcId()&&!!lsGet("gcal_ok",false)}
 function gcAuth(silent){
   const id=gcId();if(!id)return;
   const st=uid();try{sessionStorage.setItem("gcal_state",st);sessionStorage.setItem("gcal_mode",silent?"silent":"manual");sessionStorage.setItem("gcal_return",S.view||"notes");if(silent)sessionStorage.setItem("gcal_silent",String(Date.now()))}catch(e){}
-  const q=new URLSearchParams({client_id:id,redirect_uri:gcRedirect(),response_type:"token",scope:GCAL_SCOPE,state:st,include_granted_scopes:"true"});
+  const q=new URLSearchParams({client_id:id,redirect_uri:gcRedirect(),response_type:"token",scope:GCAL_SCOPE+(lsGet("gcal_edit",false)?" "+GCAL_EDIT:""),state:st,include_granted_scopes:"true"});
   if(silent)q.set("prompt","none");
   const hint=lsGet("gcal_hint","");if(hint)q.set("login_hint",hint);
   location.href="https://accounts.google.com/o/oauth2/v2/auth?"+q;
@@ -666,7 +709,7 @@ async function gcCheck(force){
 }
 // on app open: refresh an expired token quietly (once per half hour) when something needs checking
 function gcMaybeRefresh(){
-  if(!gcOn()||gcTok()||lsGet("gcal_need",false)||!calItems(false).length&&S.view!=="week")return;
+  if(!gcOn()||gcTok()||lsGet("gcal_need",false)||!calItems(false).length&&!aggView())return;
   if(S.draft||S.shots.length||S.notes.some(n=>n.status==="sorting"))return;
   let last=0;try{last=+sessionStorage.getItem("gcal_silent")||0}catch(e){}
   if(Date.now()-last<30*6e4)return;
@@ -792,27 +835,30 @@ async function weekLoad(force){
   if(!gcOn())return;
   if(!gcTok()){if(force)gcAuth(!lsGet("gcal_need",false));return}
   await Promise.all([weekLoadCal(force),weekMail(force)]);
+  briefMaybe();
 }
 function weekRefresh(){if(!gcTok())gcAuth(!lsGet("gcal_need",false));else weekLoad(true)}
 async function weekLoadCal(force){
   if(W.calBusy||!force&&Date.now()-W.cal.at<10*6e4)return;
   W.calBusy=true;W.err="";render();
   try{
-    const cals=await gcCals(),t0=addDays(0),t1=addDays(8);
-    const lists=await Promise.all(cals.map(c=>gcGet("calendars/"+encodeURIComponent(c.id)+"/events",{timeMin:t0.toISOString(),timeMax:t1.toISOString(),singleEvents:"true",orderBy:"startTime",maxResults:"250",fields:"items(summary,start,end,status,location)"}).then(r=>(r.items||[]).map(e=>({...e,calName:c.summaryOverride||c.summary||""}))).catch(e=>{if(e.code==="noauth")throw e;return []})));
+    const cals=await gcCals(),t0=addDays(0),t1=addDays(32);
+    const lists=await Promise.all(cals.map(c=>gcGet("calendars/"+encodeURIComponent(c.id)+"/events",{timeMin:t0.toISOString(),timeMax:t1.toISOString(),singleEvents:"true",orderBy:"startTime",maxResults:"250",fields:"items(id,summary,start,end,status,location,description,htmlLink,recurringEventId)"}).then(r=>(r.items||[]).map(e=>({...e,calName:c.summaryOverride||c.summary||"",calId:c.id,role:c.accessRole||""}))).catch(e=>{if(e.code==="noauth")throw e;return []})));
     const items=[];
     for(const e of lists.flat()){
       if(e.status==="cancelled"||!e.start)continue;
       const title=String(e.summary||"(No title)").slice(0,120),loc=String(e.location||"").slice(0,120);
+      const meta={id:e.id||"",calId:e.calId,link:e.htmlLink||"",rec:!!e.recurringEventId,edit:/^(owner|writer)$/.test(e.role),desc:plainDesc(e.description)};
       if(e.start.dateTime){const s=new Date(e.start.dateTime),en=new Date(e.end&&e.end.dateTime||e.start.dateTime);
-        items.push({title,date:ymd(s),start:hhmm(s),end:hhmm(en),location:loc,cal:e.calName})}
+        items.push({title,date:ymd(s),start:hhmm(s),end:hhmm(en),location:loc,cal:e.calName,...meta})}
       else{let d=parseYmd(e.start.date);const last=addDays(-1,e.end&&e.end.date||e.start.date);
-        for(let k=0;d<=last&&k<14;k++,d=addDays(1,ymd(d)))items.push({title,date:ymd(d),start:null,location:loc,cal:e.calName})}
+        for(let k=0;d<=last&&k<14;k++,d=addDays(1,ymd(d)))items.push({title,date:ymd(d),start:null,location:loc,cal:e.calName,...meta})}
     }
     W.cal={at:Date.now(),items};lsSet("week_cal",W.cal);
   }catch(e){console.warn("week cal",e);if(e.code!=="noauth")W.err="Couldn't load your calendar. Try Refresh."}
   finally{W.calBusy=false;render()}
 }
+function plainDesc(h){return String(h||"").replace(/<br\s*\/?>|<\/(p|div|li)>/gi,"\n").replace(/<[^>]+>/g," ").replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/[ \t]+/g," ").replace(/\n\s*\n+/g,"\n").trim().slice(0,700)}
 function b64text(data){
   try{const bin=atob(String(data).replace(/-/g,"+").replace(/_/g,"/"));const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new TextDecoder().decode(u)}catch(e){return ""}
 }
@@ -847,7 +893,7 @@ Return JSON: {"items":[{"msg":<email number>,"title":"short title that makes sen
 If nothing qualifies, return {"items":[]}.
 
 ${mails.map((m,i)=>`=== EMAIL ${i+1}\nFrom: ${m.from}\nSent: ${m.date}\nSubject: ${m.subject}\n${m.body}`).join("\n\n")}`;
-      const r=await geminiJSON(prompt,[],t=>{W.stage=t.replace("reading your note","reading your email");if(S.view==="week")render()});
+      const r=await geminiJSON(prompt,[],t=>{W.stage=t.replace("reading your note","reading your email");if(aggView())render()});
       const old=W.mail.items||[];
       items=(Array.isArray(r.items)?r.items:[]).slice(0,60).map(x=>{const m=mails[(+x.msg||0)-1]||{};
         const it={id:uid(),title:String(x.title||"").slice(0,120),date:/^\d{4}-\d{2}-\d{2}$/.test(String(x.date||""))?String(x.date):null,
@@ -901,11 +947,13 @@ function mailLink(m){const hint=lsGet("gcal_hint","");return m.msgId?`https://ma
 function wkRowHTML(row){
   const x=row.x;
   if(row.src==="mail")return `<div class="wk mail"><div class="tm">${x.date?esc(x.kind==="todo"&&!x.start?"Due":tLabel(x)):"Anytime"}</div>
-    <div class="info"><b>${esc(x.title)}</b>${x.details?`<span>${esc(x.details)}</span>`:""}<span class="src">✉ ${mailLink(x)?`<a href="${esc(mailLink(x))}" target="_blank" rel="noopener">${esc(x.subject||x.from||"Email")}</a>`:esc(x.subject||"Email")} · <em>Not on your calendar</em></span>
+    <div class="info"><b>${esc(x.title)}</b>${x.details?`<span>${esc(x.details)}</span>`:""}<span class="src">${srcTag("gmail",x.subject||x.from||"",mailLink(x))}<em>Not on your calendar</em></span>
       <div class="wkbtns">${x.date?`<button class="add ${x.added?"done":""}" data-act="wkcal" data-v="${x.i}">${x.added?"Added ✓":"Add to cal"}</button>`:""}<button class="btn ghost" data-act="wksave" data-v="${x.i}">Save</button><button class="x" data-act="wkhide" data-v="${x.i}" aria-label="Hide this">✕</button></div></div></div>`;
-  if(row.src==="cal")return `<div class="wk cal"><div class="tm">${esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b><span class="src">📅 ${esc(x.cal||"Calendar")}${x.location?" · "+esc(x.location):""}</span></div></div>`;
-  const n=x.n,c=n.category;
-  return `<div class="wk rem"><div class="tm">${row.src==="task"?(x.overdue?"Overdue":"To do"):esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b><span class="src"><span class="dot" style="background:${catColor(c)}"></span>${esc(c||"remembrd")}${x.location?" · "+esc(x.location):""}${x.added?" · On cal ✓":""}</span></div></div>`;
+  if(row.src==="cal")return `<div class="wk cal"><div class="tm">${esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b>${row.full&&x.desc?`<span class="desc">${esc(x.desc.length>160?x.desc.slice(0,157)+"…":x.desc)}</span>`:""}<span class="src">${srcTag("cal",x.cal||"",x.link)}${x.location?`<span>${esc(x.location)}</span>`:""}</span></div></div>`;
+  const n=x.n,c=n.category,cat=`<span class="catl"><span class="dot" style="background:${catColor(c)}"></span>${esc(c||"Unsorted")}</span>`;
+  if(row.src==="task"){const t=n.task;
+    return `<div class="wk rem task"><div class="tm"><button class="tick" data-act="tdone" data-id="${n.id}" aria-label="Mark ${esc(t.title)} done"></button></div><div class="info"><b>${esc(x.title)}</b><span class="src">${noteTag(n)}${cat}${x.overdue?`<span class="over">Overdue</span>`:""}${t.who==="partner"?`<span>For ${esc(partnerName())}</span>`:""}</span></div></div>`}
+  return `<div class="wk rem"><div class="tm">${esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b>${row.full&&x.ev&&x.ev.details?`<span class="desc">${esc(x.ev.details)}</span>`:""}<span class="src">${noteTag(n)}${cat}${x.location?`<span>${esc(x.location)}</span>`:""}${x.added?"<span>On cal ✓</span>":""}</span></div></div>`;
 }
 function weekHTML(){
   const head=`<div style="margin-top:18px"><h1 style="font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em">This week</h1>
@@ -941,12 +989,208 @@ function weekCal(i){
 }
 async function weekSave(i){
   const m=W.mail.items[i];if(!m)return;
-  const n={id:uid(),createdAt:new Date().toISOString(),text:[m.details,m.subject?"From email: "+m.subject:""].filter(Boolean).join("\n"),title:m.title,summary:"",category:addCat(m.category||"Home"),images:[],events:[],status:"sorted"};
+  const n={id:uid(),createdAt:new Date().toISOString(),text:[m.details,m.subject?"From email: "+m.subject:""].filter(Boolean).join("\n"),title:m.title,summary:"",category:addCat(m.category||"Home"),images:[],events:[],status:"sorted",source:"gmail",msgId:m.msgId||""};
   if(m.kind==="todo"||!m.date){const t=makeTask({title:m.title,due:m.date||todayStr()},m.title);t.who="me";n.task=t}
   else n.events=[{id:uid(),title:m.title,date:m.date,start:m.start,end:m.end,endDate:null,location:m.location,details:m.details,added:!!m.added}];
   S.notes.unshift(n);await putNote(n);m.saved=true;weekPersist();render();toast(n.task?"Saved to your to-dos":"Saved to remembrd");gcCheck(false);
 }
 function weekHide(i){const m=W.mail.items[i];if(!m)return;m.hidden=true;weekPersist();render()}
+
+/* ---------- where things came from ---------- */
+const SRCS={gmail:["✉","Gmail"],cal:["📅","Google Calendar"],shot:["🖼","remembrd screenshot"],photo:["📷","remembrd photo"],note:["✎","remembrd note"]};
+function noteSrc(n){if(!n)return "note";if(n.source)return n.source;if(/^From email:/m.test(n.text||""))return "gmail";return (n.images||[]).length?"shot":"note"}
+function srcTag(k,extra,href){
+  const [i,l]=SRCS[k]||SRCS.note;
+  const inner=`<span aria-hidden="true">${i}</span>${esc(l)}${extra?`<span class="sx">· ${esc(extra)}</span>`:""}`;
+  return href?`<a class="stag s-${k}" href="${esc(href)}" target="_blank" rel="noopener">${inner}</a>`:`<span class="stag s-${k}">${inner}</span>`;
+}
+function noteTag(n){const k=noteSrc(n);return k==="gmail"?srcTag("gmail","saved",n.msgId?mailLink({msgId:n.msgId}):""):srcTag(k)}
+const aggView=()=>S.view==="week"||S.view==="today";
+
+/* ---------- Today: the rundown on open ---------- */
+const T={brief:lsGet("brief",null),busy:false,key:""};
+function syncLine(){
+  const busy=W.calBusy||W.mailBusy,at=Math.max(W.cal.at||0,W.mail.at||0);
+  return busy?`<span class="spinner"></span> ${esc(W.stage||"Loading your calendar")}…`
+    :lsGet("gcal_need",false)?`Google needs a quick reconnect. <button class="linkbtn" data-act="gcauth">Reconnect</button>`
+    :`${at?"Updated "+esc(fmtTime(new Date(at).toISOString())):"Not loaded yet"} · <button class="linkbtn" data-act="wkrefresh">Refresh</button>`;
+}
+function briefRows(){
+  const M=weekModel(),out=[];
+  [0,1].forEach(k=>M.days[k].rows.forEach(r=>out.push({day:k?"TOMORROW":"TODAY",r})));
+  return out;
+}
+function briefLine({day,r},i){
+  const x=r.x,at=x.start?" at "+x.start:"",cut=(v,n)=>String(v||"").replace(/\s+/g," ").slice(0,n);
+  if(r.src==="cal")return `[${i+1}] ${day} calendar event: ${x.title}${at}${x.location?" @ "+x.location:""}${x.desc?" | event notes: "+cut(x.desc,450):""}`;
+  if(r.src==="mail")return `[${i+1}] ${day} from email "${cut(x.subject,90)}": ${x.title}${at}${x.details?" | "+cut(x.details,250):""}`;
+  if(r.src==="task")return `[${i+1}] ${day} to-do${x.overdue?" (overdue)":""}${x.n.task.who==="partner"?" for "+partnerName():""}: ${x.title}`;
+  return `[${i+1}] ${day} remembrd ${noteSrc(x.n)}: ${x.title}${at}${x.location?" @ "+x.location:""}${x.ev&&x.ev.details?" | "+cut(x.ev.details,250):""}${x.n.summary||x.n.text?" | note: "+cut(x.n.summary||x.n.text,300):""}`;
+}
+async function briefMaybe(force){
+  if(S.view!=="today"||T.busy||!S.ready||!getKey())return;
+  if(gcOn()&&(W.calBusy||W.mailBusy||!W.cal.at))return; // wait for the calendar so the rundown is complete
+  const rows=briefRows();
+  const lines=rows.map(briefLine),key=todayStr()+"|"+lines.join("\n");
+  if(!force&&T.brief&&T.brief.key===key)return;
+  T.key=key;
+  if(!rows.length){T.brief={key,items:[]};lsSet("brief",T.brief);render();return}
+  T.busy=true;render();
+  try{
+    const r=await geminiJSON(`Today is ${nowContext()}.
+You write the "Heads up" rundown a busy working mom sees when she opens her notes app. Below is everything on her calendar, email, notes and to-do list for today and tomorrow.
+Write up to 6 short bullets of what she needs to REMEMBER: things to bring, wear, pack, buy, pay, sign, send or prep, kid-specific asks, early starts, and to-dos that matter. Pull these details out of event notes and emails. Skip items where there is nothing to remember beyond the event itself (her schedule is shown right below this).
+Each bullet: under 16 words, plain words, start with "Today" or "Tomorrow" when the day isn't obvious, name the kid or person when the source does. Don't invent anything.
+Return JSON: {"items":[{"text":"...","refs":[line numbers this came from]}]}. If there's nothing beyond the schedule, return {"items":[]}.
+
+${lines.join("\n")}`,[]);
+    const items=(Array.isArray(r.items)?r.items:[]).slice(0,6).map(x=>({text:String(x.text||"").slice(0,160),refs:(Array.isArray(x.refs)?x.refs:[]).map(Number).filter(n=>n>=1&&n<=rows.length)})).filter(x=>x.text);
+    // keep the source of each bullet with it, so it still shows after the day's data changes
+    items.forEach(it=>{it.srcs=it.refs.slice(0,2).map(n=>rowSrc(rows[n-1].r)).filter(Boolean)});
+    T.brief={key,items};lsSet("brief",T.brief);
+  }catch(e){console.warn("brief",e);T.brief={key:"",items:[],err:errCopy(e)}}
+  finally{T.busy=false;render()}
+}
+function rowSrc(r){
+  const x=r.x;
+  if(r.src==="cal")return {k:"cal",extra:x.cal||"",href:x.link||""};
+  if(r.src==="mail")return {k:"gmail",extra:x.subject||x.from||"",href:mailLink(x)};
+  const k=noteSrc(x.n);return {k,extra:r.src==="task"?"to-do":"",href:k==="gmail"&&x.n.msgId?mailLink({msgId:x.n.msgId}):""};
+}
+function briefHTML(){
+  if(!getKey())return `<div class="keycard"><h2>Turn on the rundown</h2><p class="hint" style="margin-top:2px">Add your Gemini key in Settings and remembrd will pull out what to bring, pay or prep each day.</p><button class="btn primary" data-act="settings" style="margin-top:10px;width:100%">Open Settings</button></div>`;
+  if(T.busy)return `<section class="brief"><h2>Heads up</h2><p class="hint"><span class="spinner"></span> Pulling out what you need to remember…</p></section>`;
+  const b=T.brief;if(!b)return "";
+  if(b.err)return `<section class="brief"><h2>Heads up</h2><p class="hint">${esc(b.err)} <button class="linkbtn" data-act="briefredo">Try again</button></p></section>`;
+  if(!b.items.length)return `<section class="brief"><h2>Heads up</h2><p class="hint" style="margin-top:4px">Nothing extra to bring or prep. Your schedule is below.</p></section>`;
+  return `<section class="brief"><h2>Heads up</h2><ul>${b.items.map(it=>`<li><span>${esc(it.text)}</span>${(it.srcs||[]).map(s=>srcTag(s.k,s.extra,s.href)).join("")}</li>`).join("")}</ul></section>`;
+}
+function todayHTML(){
+  const h=new Date().getHours(),hi=h<12?"Good morning":h<17?"Good afternoon":"Good evening";
+  let html=`<div style="margin-top:18px"><h1 class="vh">${hi}</h1>
+    <p class="hint" style="margin-top:2px">${esc(new Date().toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"}))}. What to remember today and tomorrow.</p>`;
+  if(gcOn())html+=`<p class="hint calst">${syncLine()}</p>${W.err&&W.err!=="email"?`<div class="err">${esc(W.err)}</div>`:""}`;
+  html+=`</div>`+askHTML();
+  if(!gcOn())html+=`<div class="keycard"><h2>Connect Google</h2><p class="hint" style="margin-top:2px">Connect Google in Settings to see your calendar and email dates here.</p><button class="btn primary" data-act="settings" style="margin-top:10px;width:100%">Open Settings</button></div>`;
+  html+=briefHTML();
+  const M=weekModel();
+  M.days.slice(0,2).forEach(({d,rows},k)=>{
+    html+=`<div class="day">${k?"Tomorrow":"Today"} · ${esc(parseYmd(d).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</div><article class="note wkday">${rows.length?rows.map(r=>wkRowHTML({...r,full:true})).join(""):`<p class="hint" style="margin:0">Nothing scheduled</p>`}</article>`;
+  });
+  html+=dupHTML();
+  return html+`<button class="btn big" data-act="nav" data-v="week" style="margin-top:16px">See the whole week</button><div class="pad"></div>`;
+}
+
+/* ---------- Ask remembrd ---------- */
+const A={q:"",busy:false,stage:"",res:null,err:""};
+const ASKSTOP=new Set("do does did i we my me need needs to bring a an the for or and is are was were what when where who which how should have has any anything about on at in of it this that with be can will".split(" "));
+function askHTML(){
+  let h=`<form class="ask" id="askf" role="search"><input id="askin" type="text" enterkeyhint="search" autocomplete="off" placeholder="Ask about your calendar or email" value="${esc(A.q)}" aria-label="Ask remembrd"><button class="btn primary" ${A.busy?"disabled":""}>${A.busy?'<span class="spinner"></span>':"Ask"}</button></form>`;
+  if(A.busy)h+=`<div class="answer"><p class="hint" style="margin:0">${esc(A.stage||"Looking")}…</p></div>`;
+  else if(A.err)h+=`<div class="answer"><div class="err" style="margin:0">${esc(A.err)}</div></div>`;
+  else if(A.res)h+=`<div class="answer"><div class="aq">${esc(A.res.q)}</div><p>${esc(A.res.answer)}</p>
+    <div class="srcs">${A.res.srcs.length?`<span class="lbl2">From</span>`+A.res.srcs.map(s=>srcTag(s.k,s.extra,s.href)).join(""):`<span class="lbl2">No matching source found</span>`}<span style="flex:1"></span><button class="linkbtn" data-act="askclear">Clear</button></div></div>`;
+  return h;
+}
+async function askRun(){
+  const q=String(A.q||"").trim();if(!q||A.busy)return;
+  if(!getKey()){toast("Add your Gemini key in Settings to ask questions");openSettings();return}
+  A.busy=true;A.err="";A.res=null;A.stage="Checking your calendar";render();
+  try{
+    const google=gcOn()&&!!gcTok();
+    if(google&&Date.now()-W.cal.at>10*6e4)await weekLoadCal(true);
+    let mails=[];
+    if(google&&hasGmail()){
+      A.stage="Searching your email";render();
+      let gq="";
+      try{const r=await geminiJSON(`Write ONE Gmail search query that finds emails answering this question: "${q}"
+Use the 1-3 most distinctive words (the object, event, class, team or place). Use OR between alternatives. Only include a person's name if the question is mostly about that person. Add newer_than:60d. Return JSON {"q":"..."}.`,[]);gq=String(r.q||"").slice(0,200)}
+      catch(e){if(e&&e.code==="bad_key")throw e}
+      const kw=q.toLowerCase().replace(/[^a-z0-9 ]+/g," ").split(/\s+/).filter(w=>w.length>2&&!ASKSTOP.has(w)).slice(0,4);
+      if(!gq&&kw.length)gq=`newer_than:60d (${kw.join(" OR ")})`;
+      const ids=new Set();
+      if(gq){const l=await gcGet("users/me/messages",{q:gq,maxResults:"10"},GMAIL).catch(e=>{if(e.code==="noauth")throw e;return {}});(l.messages||[]).forEach(m=>ids.add(m.id))}
+      const got=await Promise.all([...ids].slice(0,10).map(id=>gcGet("users/me/messages/"+id,{format:"full"},GMAIL).catch(e=>{if(e.code==="noauth")throw e;return null})));
+      for(const m of got){if(!m)continue;const h=k=>((m.payload&&m.payload.headers||[]).find(x=>x.name.toLowerCase()===k)||{}).value||"";
+        mails.push({id:m.id,from:h("from").replace(/\s*<.*>$/,"").replace(/"/g,""),date:h("date"),subject:h("subject"),body:(mailBody(m.payload)||m.snippet||"").slice(0,3000)})}
+    }
+    A.stage="Gemini is reading what it found";render();
+    const refs={},L=[];
+    const add=(id,txt,src)=>{refs[id]=src;L.push(`[${id}] ${txt}`)};
+    mails.forEach((m,i)=>add("E"+(i+1),`EMAIL from ${m.from}, sent ${m.date}, subject "${m.subject}":\n${m.body}`,{k:"gmail",extra:m.subject||m.from,href:mailLink({msgId:m.id})}));
+    (W.mail.items||[]).filter(m=>!m.hidden).slice(0,40).forEach((m,i)=>add("X"+(i+1),`EMAIL ITEM ${m.date||"no date"}${m.start?" "+m.start:""}: ${m.title} | ${m.details} (subject "${m.subject}")`,{k:"gmail",extra:m.subject||m.from,href:mailLink(m)}));
+    (W.cal.items||[]).slice(0,150).forEach((c,i)=>add("C"+(i+1),`CALENDAR ${c.date}${c.start?" "+c.start:" all day"} (${c.cal}): ${c.title}${c.location?" @ "+c.location:""}${c.desc?" | notes: "+c.desc.replace(/\s+/g," ").slice(0,500):""}`,{k:"cal",extra:c.cal,href:c.link}));
+    const cutoff=new Date(Date.now()-45*864e5).toISOString(),today=todayStr();
+    S.notes.filter(n=>n.createdAt>=cutoff||(n.events||[]).some(e=>e.date>=today)||n.task&&!n.task.doneAt).slice(0,60).forEach((n,i)=>add("N"+(i+1),
+      `REMEMBRD ${noteSrc(n)} saved ${n.createdAt.slice(0,10)} [${n.category}]: ${n.title} | ${String(n.summary||n.text||"").replace(/\s+/g," ").slice(0,400)}${(n.events||[]).map(e=>` | date: ${e.date}${e.start?" "+e.start:""} ${e.title}${e.details?" ("+e.details+")":""}`).join("")}${n.task?` | to-do: ${n.task.title}, due ${n.task.due}${n.task.doneAt?", done":""}`:""}`,
+      {k:noteSrc(n),extra:n.title,href:n.msgId?mailLink({msgId:n.msgId}):""}));
+    const r=await geminiJSON(`Today is ${nowContext()}.
+You are remembrd, a personal assistant for a busy working mom. Answer her question using ONLY the sources below (her email, calendar and saved notes).
+Lead with the direct answer (yes/no or the thing itself), then the key detail: who, what, when. Name which kid or person when the source says. If sources disagree, say so. If nothing below answers it, say you couldn't find it and suggest where she might check. 1-3 short sentences, plain words.
+Return JSON: {"answer":"...","refs":["E2","C5"]} listing the ids you actually used (most important first, max 3).
+
+QUESTION: ${q}
+
+SOURCES:
+${L.length?L.join("\n\n"):"(none)"}`,[],t=>{A.stage=t.replace("reading your note","reading what it found");render()});
+    const used=(Array.isArray(r.refs)?r.refs:[]).map(String).filter(id=>refs[id]).slice(0,3);
+    A.res={q,answer:String(r.answer||"I couldn't find an answer.").slice(0,600),srcs:used.map(id=>refs[id])};
+    if(!google&&gcOn())A.res.answer+=" (Google needs a reconnect, so only your saved notes were checked.)";
+  }catch(e){console.warn("ask",e);A.err=e&&e.code==="noauth"?"Google needs a quick reconnect before remembrd can search. Tap Reconnect above.":errCopy(e).replace(/ remembrd will retry on its own\.?/,"")+""}
+  finally{A.busy=false;render()}
+}
+
+/* ---------- duplicate events on her calendar ---------- */
+const normT=t=>String(t||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+let dupArm="";
+function dupPairs(){
+  const ok=new Set(lsGet("dup_ok",[])),items=(W.cal.items||[]).filter(x=>x.id&&x.date>=todayStr()),out=[],seen=new Set();
+  const byDay={};items.forEach(x=>(byDay[x.date]=byDay[x.date]||[]).push(x));
+  for(const d of Object.keys(byDay).sort()){
+    const l=byDay[d];
+    for(let i=0;i<l.length;i++)for(let j=i+1;j<l.length;j++){
+      const a=l[i],b=l[j];
+      if(a.id===b.id)continue; // same event showing on two calendars, not a copy
+      if(!!a.start!==!!b.start)continue;
+      if(a.start&&Math.abs(evStart(a)-evStart(b))>15*6e4)continue;
+      if(normT(a.title)!==normT(b.title)&&!titleMatch(a.title,b.title))continue;
+      const key=[a.calId+"/"+a.id,b.calId+"/"+b.id].sort().join("|");
+      if(seen.has(key)||ok.has(key))continue;seen.add(key);
+      out.push({key,date:d,a,b});
+    }
+  }
+  return out;
+}
+function dupHTML(){
+  if(!gcOn()||!W.cal.at)return "";
+  const P=dupPairs();if(!P.length)return "";
+  const edit=canEditCal();
+  const copy=(x,p)=>{const ek=x.calId+"/"+x.id;return `<div class="dcopy"><div class="info"><b>${esc(x.title)}</b><span>${esc(x.cal||"Calendar")}${x.location?" · "+esc(x.location):""}${x.rec?" · repeats":""}</span></div>
+    ${x.edit?`<button class="btn ${dupArm===ek?"armed":"danger"}" data-act="dupdel" data-v="${esc(ek)}">${dupArm===ek?"Tap to delete":"Delete"}</button>`:`<span class="hint" style="margin:0;flex:none">Can't edit</span>`}</div>`};
+  return `<section class="dups"><h2>Possible duplicates (${P.length})</h2>
+    <p class="hint" style="margin-top:2px">Same name, same day, same time on your calendar. Pick the copy to delete. Deleted events go to Google Calendar's trash for 30 days.${P.some(p=>p.a.rec||p.b.rec)?" For repeating events, this deletes that one date only.":""}</p>
+    ${edit?"":`<button class="btn primary" data-act="dupedit" style="margin-top:10px;width:100%">Let remembrd delete duplicates</button><p class="hint">Google will ask you to allow calendar editing. One time.</p>`}
+    ${P.slice(0,12).map(p=>`<div class="dpair"><div class="dw">${esc(parseYmd(p.date).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))} · ${esc(tLabel(p.a))}</div>${edit?copy(p.a,p)+copy(p.b,p):`<div class="dcopy"><div class="info"><b>${esc(p.a.title)}</b><span>${esc(p.a.cal)} and ${esc(p.b.cal)}</span></div></div>`}
+      <button class="linkbtn" data-act="dupok" data-v="${esc(p.key)}" style="margin-top:6px;font-size:13px">Not a duplicate</button></div>`).join("")}
+  </section>`;
+}
+async function dupDelete(ek){
+  if(dupArm!==ek){dupArm=ek;render();setTimeout(()=>{if(dupArm===ek){dupArm="";render()}},5000);return}
+  dupArm="";
+  const x=(W.cal.items||[]).find(i=>i.calId+"/"+i.id===ek);if(!x)return;
+  if(!canEditCal()){lsSet("gcal_edit",true);gcAuth(false);return}
+  const tok=gcTok();if(!tok){gcAuth(false);return}
+  try{
+    const r=await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(x.calId)}/events/${encodeURIComponent(x.id)}?sendUpdates=none`,{method:"DELETE",headers:{Authorization:"Bearer "+tok}});
+    if(r.status===401){lsSet("gcal_token",null);gcAuth(false);return}
+    if(r.status===403){let m="";try{m=(await r.json()).error.message||""}catch(e){}
+      if(/insufficient|scope/i.test(m)){lsSet("gcal_edit",true);lsSet("gcal_scope","");gcAuth(false);return}
+      toast("Google won't let remembrd delete from that calendar. It may be shared or read-only.");return}
+    if(!r.ok&&r.status!==404&&r.status!==410){toast("Couldn't delete that one. Try again.");return}
+    W.cal.items=W.cal.items.filter(i=>!(i.calId===x.calId&&i.id===x.id));lsSet("week_cal",W.cal);
+    toast(`Deleted from ${x.cal||"your calendar"}. It's in Google Calendar's trash for 30 days.`);render();
+  }catch(e){toast("Couldn't reach Google. Check your connection.")}
+}
 
 /* ---------- render ---------- */
 function upcoming(){
@@ -956,9 +1200,9 @@ function upcoming(){
 }
 function render(){
   const up=upcoming().length,dn=dueTasks().length;
-  $("#topnav").innerHTML=`<button data-act="nav" data-v="notes" ${S.view==="notes"?'aria-current="page"':""}>Notes</button><button data-act="nav" data-v="week" ${S.view==="week"?'aria-current="page"':""}>This week</button><button data-act="nav" data-v="todo" ${S.view==="todo"?'aria-current="page"':""}>To do${dn?`<span class="ct">${dn}</span>`:""}</button><button data-act="nav" data-v="upcoming" ${S.view==="upcoming"?'aria-current="page"':""}>Upcoming${up?`<span class="ct">${up}</span>`:""}</button>`;
-  const ae=document.activeElement,fid=ae&&(ae.id==="cap"||ae.id==="q")?ae.id:null,ss=fid?ae.selectionStart:0,se=fid?ae.selectionEnd:0;
-  $("#main").innerHTML=(S.view==="week"?weekHTML():S.view==="upcoming"?upcomingHTML():S.view==="todo"?todoHTML():notesHTML())+selBarHTML();
+  $("#topnav").innerHTML=`<button data-act="nav" data-v="today" ${S.view==="today"?'aria-current="page"':""}>Today</button><button data-act="nav" data-v="notes" ${S.view==="notes"?'aria-current="page"':""}>Notes</button><button data-act="nav" data-v="week" ${S.view==="week"?'aria-current="page"':""}>This week</button><button data-act="nav" data-v="todo" ${S.view==="todo"?'aria-current="page"':""}>To do${dn?`<span class="ct">${dn}</span>`:""}</button><button data-act="nav" data-v="upcoming" ${S.view==="upcoming"?'aria-current="page"':""}>Upcoming${up?`<span class="ct">${up}</span>`:""}</button>`;
+  const ae=document.activeElement,fid=ae&&(ae.id==="cap"||ae.id==="q"||ae.id==="askin")?ae.id:null,ss=fid?ae.selectionStart:0,se=fid?ae.selectionEnd:0;
+  $("#main").innerHTML=(S.view==="today"?todayHTML():S.view==="week"?weekHTML():S.view==="upcoming"?upcomingHTML():S.view==="todo"?todoHTML():notesHTML())+selBarHTML();
   if(fid){const el=document.getElementById(fid);if(el){el.focus({preventScroll:true});try{el.setSelectionRange(ss,se)}catch(_){}}}
 }
 function captureHTML(){
@@ -978,7 +1222,7 @@ function noteHTML(n){
   const c=n.category;
   return `<article class="note">
     <div class="nhead">${n.status==="sorting"?`<span class="sorting"><span class="spinner"></span>Sorting</span>`:c?`<span class="cat"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}</span>`:`<span class="cat">Unsorted</span>`}
-      <span class="t">${esc(fmtTime(n.createdAt))}</span></div>
+      ${n.status==="sorting"?"":noteTag(n)}<span class="t">${esc(fmtTime(n.createdAt))}</span></div>
     ${n.title?`<h3>${esc(n.title)}</h3>`:""}
     ${n.status==="sorting"?progHTML(n.id):""}
     ${n.text?`<div class="ntext">${esc(n.text)}</div>`:""}
@@ -1067,13 +1311,19 @@ document.addEventListener("click",e=>{
   const b=e.target.closest("[data-act]");if(!b)return;
   const a=b.dataset.act,v=b.dataset.v;
   if(a==="save")saveNote();
-  else if(a==="nav"){S.view=v;render();scrollTo(0,0);if(v==="week")weekLoad(false)}
+  else if(a==="nav"){S.view=v;render();scrollTo(0,0);if(v==="week"||v==="today")weekLoad(false)}
+  else if(a==="askclear"){A.res=null;A.err="";A.q="";render()}
+  else if(a==="askex"){A.q=v;askRun()}
+  else if(a==="dupdel")dupDelete(v);
+  else if(a==="dupok"){const k=lsGet("dup_ok",[]);k.push(v);lsSet("dup_ok",k.slice(-200));render()}
+  else if(a==="dupedit"){lsSet("gcal_edit",true);gcAuth(false)}
+  else if(a==="briefredo"){T.key="";lsSet("brief",null);T.brief=null;briefMaybe(true)}
   else if(a==="wkrefresh")weekRefresh();
   else if(a==="wksave")weekSave(+v);
   else if(a==="wkcal")weekCal(+v);
   else if(a==="wkhide")weekHide(+v);
   else if(a==="wkshowlater"){W.later=!W.later;render()}
-  else if(a==="home"){S.view="notes";S.filter="All";S.q="";render();scrollTo(0,0)}
+  else if(a==="home"){S.view="today";S.filter="All";S.q="";render();scrollTo(0,0);weekLoad(false)}
   else if(a==="filter"){S.filter=v;render()}
   else if(a==="shotrm"){const s=S.shots.splice(+v,1)[0];if(s)URL.revokeObjectURL(s.url);render()}
   else if(a==="cal")addToCal(b.dataset.id,v);
@@ -1116,26 +1366,28 @@ document.addEventListener("input",e=>{
   const t=e.target;
   if(t.id==="cap")S.draft=t.value;
   else if(t.id==="q"){S.q=t.value;render()}
+  else if(t.id==="askin")A.q=t.value;
   else if(t.id==="partnerin"){try{localStorage.setItem("partner_name",t.value.trim())}catch(_){}}
 });
 document.addEventListener("change",async e=>{
   const t=e.target;
   if(t.id==="shotin"||t.id==="camin"){const files=[...(t.files||[])].slice(0,6);t.value="";
-    for(const f of files){const blob=await prepareImage(f);S.shots.push({blob,url:URL.createObjectURL(blob)})}render();const c=$("#cap");c&&c.focus()}
+    for(const f of files){const blob=await prepareImage(f);S.shots.push({blob,url:URL.createObjectURL(blob),cam:t.id==="camin"})}render();const c=$("#cap");c&&c.focus()}
   else if(t.id==="ecat"){$("#enewcat").hidden=t.value!=="__new";if(t.value==="__new")$("#enewcat").focus()}
 });
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"){$("#lb").hidden=true;if(!$("#sheet").hidden)closeSheet()}
   if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)&&e.target.id==="cap")saveNote();
 });
+document.addEventListener("submit",e=>{if(e.target.id==="askf"){e.preventDefault();const i=$("#askin");if(i){A.q=i.value;i.blur()}askRun()}});
 $("#sheet").addEventListener("click",e=>{if(e.target.id==="sheet")closeSheet()});
 $("#lb").addEventListener("click",e=>{if(e.target.id==="lb")$("#lb").hidden=true});
 
 /* ---------- boot ---------- */
 const gcBack=gcTakeRedirect();
-if(gcBack){try{const v=sessionStorage.getItem("gcal_return");if(["notes","week","todo","upcoming"].includes(v))S.view=v}catch(e){}}
-// Mondays: the first open of the day starts on This week
-else if(new Date().getDay()===1&&lsGet("week_autoday","")!==todayStr()){lsSet("week_autoday",todayStr());if(gcOn())S.view="week"}
+if(gcBack){try{const v=sessionStorage.getItem("gcal_return");if(["today","notes","week","todo","upcoming"].includes(v))S.view=v}catch(e){}}
+// every fresh open starts on Today
+else S.view="today";
 render();
 (async function boot(){
   try{S.db=await openIDB();if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
@@ -1145,16 +1397,23 @@ render();
     for(const n of S.notes)if(n.status==="sorting"){n.status="unsorted";n.err=null}
   }catch(e){console.warn("no storage",e);toast("Notes can't be saved in this browser (private browsing?)")}
   S.ready=true;render();
-  if(gcBack==="ok"){if(!lsGet("gcal_last",0))toast("Google connected");gcCheck(true);if(S.view==="week")weekLoad(false)}
+  if(gcBack==="ok"){if(!lsGet("gcal_last",0))toast("Google connected");gcCheck(true);if(aggView())weekLoad(false)}
   else if(gcBack&&gcBack!=="state"&&(()=>{try{return sessionStorage.getItem("gcal_mode")==="manual"}catch(e){return false}})())toast("Google didn't connect. Try Connect Google again in Settings.");
   for(const n of S.notes.filter(x=>x.status==="unsorted"&&(!x.err||x.retry)))sortNote(n.id);
-  if(gcBack===null){if(gcTok()){gcCheck(false);if(S.view==="week")weekLoad(false)}else gcMaybeRefresh()}
+  if(gcBack===null){if(gcTok()){gcCheck(false);if(aggView())weekLoad(false)}else gcMaybeRefresh()}
+  briefMaybe();
 })();
 // quietly retry notes that failed because Gemini was busy/offline
 let retryT=null,retryDelay=60000;
 function retryPending(){if(!getKey()||navigator.onLine===false)return;const due=S.notes.filter(x=>x.status==="unsorted"&&x.retry);due.forEach(n=>sortNote(n.id));return due.length}
 function scheduleRetry(){if(retryT)return;retryT=setTimeout(()=>{retryT=null;if(retryPending())retryDelay=Math.min(retryDelay*2,15*60000)},retryDelay)}
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"){retryDelay=60000;retryPending();gcCheck(false);if(S.view==="week"&&gcTok())weekLoad(false)}});
+let hiddenAt=0;
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="hidden"){hiddenAt=Date.now();return}
+  // back after a while counts as opening the app: start on Today
+  if(hiddenAt&&Date.now()-hiddenAt>30*6e4&&$("#sheet").hidden&&!S.sel){S.view="today";A.res=null;A.err="";render();scrollTo(0,0)}
+  retryDelay=60000;retryPending();gcCheck(false);if(aggView()&&gcTok())weekLoad(false);else if(aggView()&&!gcTok())gcMaybeRefresh();
+});
 addEventListener("online",()=>{retryDelay=60000;retryPending()});
 </script>
 </body></html>
