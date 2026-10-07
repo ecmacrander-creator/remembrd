@@ -599,7 +599,8 @@ async function gcCals(){
 const GCAL_SCOPE="https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.readonly";
 const GC={busy:false,cals:null};
 const gcRedirect=()=>location.origin+location.pathname;
-function gcId(){return lsGet("gcal_client_id","")||""}
+const GCAL_CLIENT_ID="518700755844-p1n5v0j19ii8ocpelbo2up45boku9hvg.apps.googleusercontent.com";
+function gcId(){return lsGet("gcal_client_id","")||GCAL_CLIENT_ID}
 function gcTok(){const t=lsGet("gcal_token",null);return t&&t.exp>Date.now()+60000?t.t:null}
 function gcOn(){return !!gcId()&&!!lsGet("gcal_ok",false)}
 function gcAuth(silent){
@@ -685,9 +686,8 @@ function addTaskToCal(noteId,force){
   window.open(taskGcalUrl(n),"_blank","noopener");t.added=true;putNote(n);setTimeout(render,300);
 }
 function gcConnect(){
-  const id=($("#gcidin").value||"").trim();
-  if(!/\.apps\.googleusercontent\.com$/.test(id)){toast("That doesn't look like a Client ID. It ends in .apps.googleusercontent.com.");return}
-  lsSet("gcal_client_id",id);gcAuth(false);
+  try{localStorage.removeItem("gcal_client_id")}catch(e){}
+  gcAuth(false);
 }
 function gcDisconnect(){
   const t=gcTok();if(t)fetch("https://oauth2.googleapis.com/revoke?token="+encodeURIComponent(t),{method:"POST"}).catch(()=>{});
@@ -757,8 +757,7 @@ function renderSettings(){
   <p class="hint" style="margin-top:0">Read-only. remembrd checks your calendar so it won't suggest adding something that's already there, and This week shows your calendar plus dates pulled from your email.</p>
   ${gcOn()?`<p style="margin:6px 0 0;font-weight:600">${lsGet("gcal_need",false)?"Needs a quick reconnect":"Connected"}${lsGet("gcal_hint","")?` <span class="hint" style="font-weight:400">· ${esc(lsGet("gcal_hint",""))}</span>`:""}</p>
     <div class="sheetfoot" style="margin-top:8px">${lsGet("gcal_need",false)?`<button class="btn primary" data-act="gcauth">Reconnect</button>`:`<button class="btn" data-act="gccheck">Check now</button>`}<button class="btn ghost danger" data-act="gcoff">Disconnect</button></div>`
-  :`<ol><li>In <a href="https://console.cloud.google.com/apis/library/calendar-json.googleapis.com" target="_blank" rel="noopener">Google Cloud</a>, make a project and enable the <b>Google Calendar API</b>. Then enable the <a href="https://console.cloud.google.com/apis/library/gmail.googleapis.com" target="_blank" rel="noopener"><b>Gmail API</b></a> too.</li><li>Set up the <b>OAuth consent screen</b> (External), then tap <b>Publish app</b>.</li><li>Under <b>Credentials</b>, create an <b>OAuth client ID</b> → Web application. Add this as an authorized redirect URI:<br><code style="font-family:var(--mono);font-size:13px;word-break:break-all">${esc(gcRedirect())}</code></li><li>Paste the Client ID below.</li></ol>
-    <input id="gcidin" class="inp" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="….apps.googleusercontent.com" value="${esc(gcId())}" style="font-family:var(--mono);font-size:14px;margin-top:10px">
+  :`<p class="hint" style="margin-top:6px">You'll sign in with Google and approve read-only access. Google may warn that the app isn't verified. Tap <b>Advanced</b>, then <b>Go to remembrd</b>.</p>
     <button class="btn primary big" data-act="gcconnect" style="margin-top:10px">Connect Google</button>`}
   <span class="lbl">Your partner's name</span>
   <p class="hint" style="margin-top:0">Used when you assign to-dos to him.</p>
@@ -1147,7 +1146,7 @@ render();
   }catch(e){console.warn("no storage",e);toast("Notes can't be saved in this browser (private browsing?)")}
   S.ready=true;render();
   if(gcBack==="ok"){if(!lsGet("gcal_last",0))toast("Google connected");gcCheck(true);if(S.view==="week")weekLoad(false)}
-  else if(gcBack&&gcBack!=="state"&&(()=>{try{return sessionStorage.getItem("gcal_mode")==="manual"}catch(e){return false}})())toast("Calendar didn't connect. Check the Client ID and redirect URI in Settings.");
+  else if(gcBack&&gcBack!=="state"&&(()=>{try{return sessionStorage.getItem("gcal_mode")==="manual"}catch(e){return false}})())toast("Google didn't connect. Try Connect Google again in Settings.");
   for(const n of S.notes.filter(x=>x.status==="unsorted"&&(!x.err||x.retry)))sortNote(n.id);
   if(gcBack===null){if(gcTok()){gcCheck(false);if(S.view==="week")weekLoad(false)}else gcMaybeRefresh()}
 })();
