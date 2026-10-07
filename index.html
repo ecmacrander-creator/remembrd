@@ -169,6 +169,34 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 .todo .info .whob{display:flex;margin:4px 0 0}
 .whob .kidb,.whob .whoadd{display:inline-flex!important;margin:0!important}
 .whoadd{font-size:11.5px;font-weight:700;color:var(--ink-3);border:1px dashed var(--line);border-radius:6px;padding:0 7px;line-height:1.6}
+.pfb{margin-right:8px;font-family:var(--display);font-weight:800;font-size:17px}
+.pfb.on{background:var(--kc);border-color:var(--kc);color:#fff}
+.pfbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:8px 12px;border-radius:12px;background:color-mix(in srgb,var(--kc) 16%,var(--surface));font-size:14px}
+.pfbar b{color:var(--kc)}
+.tlist{margin-top:4px}
+.todo.c,.todo.c.now{background:none;border-radius:0;margin:0;padding:9px 0;gap:10px;align-items:flex-start;border-top:1px solid var(--line)}
+.tlist>.todo.c:first-child{border-top:0}
+.todo.c .tick{width:24px;height:24px;font-size:13px;border-width:2px;margin-top:1px}
+.todo.c .tb{flex:1;min-width:0}
+.todo.c .tt{display:block;width:100%;text-align:left;border:0;background:none;padding:0;font:inherit;font-weight:700;font-size:15px;line-height:1.3;color:var(--ink);cursor:pointer}
+.todo.c.done .tt{text-decoration:line-through;color:var(--ink-3)}
+.todo.c .tm2{display:flex;flex-wrap:wrap;align-items:center;gap:2px 10px;margin-top:2px;font-size:12.5px;color:var(--ink-2)}
+.todo.c .tm2 .od{color:var(--danger);font-weight:700}
+.todo.c .tppl{border:0;background:none;padding:0;font:inherit;font-weight:700;cursor:pointer}
+.todo.c .tppl.add{color:var(--ink-3);font-weight:600}
+.todo.c .ocal{color:var(--good);font-weight:600}
+.todo.c .tsrc{text-decoration:none;font-size:12px}
+.todo.c .more{flex:none;border:0;background:none;color:var(--ink-3);font-size:20px;line-height:1;width:32px;height:28px;border-radius:8px;cursor:pointer;margin-top:-2px}
+.duebox .tlist{margin-top:6px}
+.tcard{padding-top:6px;padding-bottom:6px}
+.mlist{display:flex;flex-direction:column;margin-top:14px;border-top:1px solid var(--line)}
+.mrow{display:flex;align-items:center;gap:8px;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:14px 4px;font:inherit;font-size:16px;font-weight:600;color:var(--ink);cursor:pointer;min-height:50px}
+.mrow.off{color:var(--good);cursor:default}
+.mrow.danger{color:var(--danger)}
+.evtasks{margin-top:6px;display:flex;flex-direction:column;gap:4px}
+.evt{display:flex;align-items:center;gap:8px}
+.evt .tick{width:20px;height:20px;border-width:2px;flex:none}
+.evtt{border:0;background:none;padding:0;font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);text-align:left;cursor:pointer}
 .catbtn{border:0;cursor:pointer;font:inherit;display:inline-flex;align-items:center;gap:6px}
 .catbtn .caret{font-size:10px;opacity:.55;margin-left:-1px}
 .addcat{border-style:dashed!important;color:var(--ink-2)}
@@ -311,6 +339,7 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
   <div class="wrap">
     <button class="logo" data-act="home" aria-label="remembrd home"><span class="mark" aria-hidden="true"></span><span class="word">remembr<b>d</b></span></button>
     <span class="spacer"></span>
+    <span id="pfslot"></span>
     <button class="iconbtn" data-act="settings" aria-label="Settings"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
   </div>
   <nav class="wrap topnav" id="topnav" aria-label="Sections"></nav>
@@ -470,7 +499,28 @@ function makeTask(raw,fallbackTitle){
   const repeat=REPEATS[String(raw.repeat||"").toLowerCase()]?String(raw.repeat).toLowerCase():null;
   return {title:String(raw.title||fallbackTitle||"To-do").slice(0,100),due,anchor:due,repeat,log:[],doneAt:null,added:false};
 }
-function dueTasks(){return S.notes.filter(n=>n.task&&taskState(n.task)==="now").sort((a,b)=>a.task.due<b.task.due?-1:1)}
+// a to-do tucked under its event stays out of her face until that event
+const inFace=n=>!(n.task&&n.task.onEvent&&!n.task.doneAt);
+function evKeyOf(o){return o.type==="cal"?"c:"+o.key:"r:"+o.evId}
+function attachedTo(key){return S.notes.filter(n=>n.task&&n.task.onEvent&&!n.task.doneAt&&evKeyOf(n.task.onEvent)===key)}
+// the event a to-do belongs to, if we can tell
+function taskEvent(n){
+  const t=n.task;if(!t)return null;
+  if(n.fromCal&&n.calKey){const key=String(n.calKey).split("|")[0],c=(W.cal.items||[]).find(x=>calPKey(x)===key);
+    if(c)return {type:"cal",key,title:c.title,date:c.date}}
+  const par=n.parent&&S.notes.find(x=>x.id===n.parent);
+  for(const src of [par,n].filter(Boolean)){const evs=(src.events||[]).filter(e=>e.date>=todayStr());
+    const e=evs.find(e=>e.date===t.due)||evs.find(e=>titleMatch(e.title,t.title))||(src===par?evs[0]:null);
+    if(e)return {type:"rem",noteId:src.id,evId:e.id,title:e.title,date:e.date}}
+  for(const m of S.notes)for(const e of (m.events||[]))if(e.date>=todayStr()&&e.date>=t.due&&Math.abs(parseYmd(e.date)-parseYmd(t.due))<=3*864e5&&titleMatch(e.title,t.title))return {type:"rem",noteId:m.id,evId:e.id,title:e.title,date:e.date};
+  const c=(W.cal.items||[]).find(x=>x.date>=todayStr()&&x.date>=t.due&&Math.abs(parseYmd(x.date)-parseYmd(t.due))<=3*864e5&&titleMatch(x.title,t.title));
+  return c?{type:"cal",key:calPKey(c),title:c.title,date:c.date}:null;
+}
+function attachedHTML(key){
+  const l=attachedTo(key);if(!l.length)return "";
+  return `<div class="evtasks">${l.map(n=>`<div class="evt"><button class="tick" data-act="tdone" data-id="${n.id}" aria-label="Mark ${esc(n.task.title)} done"></button><button class="evtt" data-act="tmenu" data-id="${n.id}">${esc(n.task.title)}</button></div>`).join("")}</div>`;
+}
+function dueTasks(){return S.notes.filter(n=>n.task&&inFace(n)&&taskState(n.task)==="now").sort((a,b)=>a.task.due<b.task.due?-1:1)}
 let lastUndo=null;
 async function completeTask(id){
   const n=S.notes.find(x=>x.id===id);if(!n||!n.task)return;
@@ -621,9 +671,9 @@ async function calTasksMaybe(force){
 Below are a busy working mom's Google Calendar events for the next two weeks. Find the to-dos hiding in them: things she has to DO beyond just showing up. Examples: bring, wear, pack, buy, pay, sign, send, return a form, RSVP, sign up, register, book, order, pick up or drop off something, make food, volunteer prep, and deadlines ("forms due", "last day to order", "registration closes"). An event whose title is itself a chore ("Pay tuition", "Call dentist", "Renew registration") is a to-do too.
 Do NOT make a to-do for simply attending, driving to, or watching something. Only use what is written; don't invent. Most events have no to-do; it's fine to return none.
 Her kids, with their teachers, teams and activities: ${kidsPrompt()||"(not set)"}. Name the kid in the title when the event is clearly for one.
-For each to-do: "ref" = the event's number, "title" = short imperative under 9 words ("Bring snacks for Arthur's team"), "due" = YYYY-MM-DD she must do it by (the deadline if stated; otherwise the event's date), "category" = one of ${JSON.stringify(getCats())} or a short new one.
+For each to-do: "ref" = the event's number, "title" = short imperative under 9 words ("Bring snacks for Arthur's team"), "due" = YYYY-MM-DD she must do it by (the deadline if stated; otherwise the event's date), "category" = one of ${JSON.stringify(getCats())} or a short new one, "when" = "now" if it needs doing ahead of time and she should see it until done (pay, buy, order, sign, send, return a form, RSVP, sign up, register, book, make or bake something), or "day" if it only matters on the day of the event (bring, wear, pack, what to know when she gets there).
 ${catGuide()}
-Return JSON: {"items":[{"ref":1,"title":"...","due":"YYYY-MM-DD","category":"..."}]}
+Return JSON: {"items":[{"ref":1,"title":"...","due":"YYYY-MM-DD","category":"...","when":"now"}]}
 
 ${lines.join("\n")}`,[]);
     const gone=new Set(lsGet("cal_tasks_gone",[]));let made=0;
@@ -636,6 +686,7 @@ ${lines.join("\n")}`,[]);
       const t=makeTask({title,due},title),own=calOwner(c.calId);t.who=own===partnerName()?"partner":"me";
       const n={id:uid(),createdAt:new Date().toISOString(),text:"From your calendar: "+c.title+(c.desc?"\n"+c.desc.slice(0,300):""),title,summary:"",category:addCat(x.category||"Home"),images:[],events:[],status:"sorted",source:"cal",fromCal:true,calKey:ck,calId:c.calId||"",calLink:c.link||"",task:t};
       if(own&&own!==meName()&&own!==partnerName()){n.people=[own];n.peopleSet=true}
+      if(x.when==="day")t.onEvent={type:"cal",key:calPKey(c),title:c.title,date:c.date};
       S.notes.unshift(n);await putNote(n);made++;
     }
     lsSet("cal_tasks",{key,at:Date.now()});
@@ -647,12 +698,12 @@ ${lines.join("\n")}`,[]);
 /* ---------- Today: tasks right under the note box ---------- */
 function todayTasksHTML(){
   const end=ymd(addDays(7)),mine=n=>S.kid==="all"||notePeople(n).includes(S.kid);
-  const open=S.notes.filter(n=>n.task&&!n.task.doneAt&&mine(n)).sort((a,b)=>a.task.due<b.task.due?-1:1);
+  const open=S.notes.filter(n=>n.task&&!n.task.doneAt&&inFace(n)&&mine(n)).sort((a,b)=>a.task.due<b.task.due?-1:1);
   const soon=open.filter(n=>n.task.due<=end),later=open.length-soon.length;
   let h=`<section class="duebox tdy"><div class="duehead"><h2>To do</h2><span>${soon.length?soon.length+" this week":""}</span></div>`;
   if(CT.busy)h+=`<p class="hint" style="margin:4px 0 0"><span class="spinner"></span> Looking for to-dos in your calendar…</p>`;
   if(!soon.length&&!CT.busy)h+=`<p class="hint" style="margin:4px 0 0">${S.kid==="all"?"Nothing due this week.":"Nothing for "+esc(S.kid)+" this week."}${gcOn()&&getKey()?"":" Connect Google and add your Gemini key in Settings so remembrd can pull to-dos from your calendar."}</p>`;
-  h+=soon.slice(0,10).map(n=>`<div class="duerow"><div style="flex:1;min-width:0">${taskHTML(n)}<div class="tmeta">${noteTag(n)}</div></div></div>`).join("");
+  h+=`<div class="tlist">${soon.slice(0,10).map(taskHTML).join("")}</div>`;
   if(soon.length>10||later)h+=`<button class="linkbtn" data-act="nav" data-v="todo" style="margin-top:10px">See all ${open.length} to-dos</button>`;
   return h+`</section>`;
 }
@@ -1134,6 +1185,8 @@ function renderSheet(){
   if(S.sheetMode==="catpick")return renderCatPick();
   if(S.sheetMode==="rmask")return renderRmAsk();
   if(S.sheetMode==="who")return renderWho();
+  if(S.sheetMode==="tmenu")return renderTaskMenu();
+  if(S.sheetMode==="pfilter")return renderPFilter();
   const e=S.edit;if(!e)return;
   const cats=getCats();
   $("#sheet").innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Edit note">
@@ -1374,7 +1427,7 @@ function remItems(){
   const out=[],today=todayStr();
   for(const n of S.notes){
     for(const ev of (n.events||[]))if(ev.date)out.push({kind:"rem",n,ev,title:ev.title,date:ev.date,start:ev.start,end:ev.end,location:ev.location,added:ev.added||ev.cal&&ev.cal.match});
-    if(n.task&&!n.task.doneAt)out.push({kind:"task",n,title:n.task.title,date:n.task.due<today?today:n.task.due,start:null,overdue:n.task.due<today,added:n.task.added||n.task.cal&&n.task.cal.match});
+    if(n.task&&!n.task.doneAt&&inFace(n))out.push({kind:"task",n,title:n.task.title,date:n.task.due<today?today:n.task.due,start:null,overdue:n.task.due<today,added:n.task.added||n.task.cal&&n.task.cal.match});
   }
   return out;
 }
@@ -1411,7 +1464,7 @@ function todoLine(t,evDate){
   return `<span class="todoline">☐ To do: ${esc(t.title)}${esc(due)}</span>`;
 }
 function remTodoLine(n,x){
-  const all=[n,...kidsOf(n)].filter(c=>c.task&&!c.task.doneAt);
+  const all=[n,...kidsOf(n)].filter(c=>c.task&&!c.task.doneAt&&inFace(c));
   const t=all.find(c=>c.task.due===x.date&&titleMatch(c.task.title,x.title))||all.find(c=>c.task.due<=x.date&&titleMatch(c.task.title,x.title))||all.find(c=>c.task.due===x.date);
   return t?`<span class="todoline">☐ To do: ${esc(t.task.title)}</span>`:"";
 }
@@ -1420,11 +1473,11 @@ function wkRowHTML(row){
   if(row.src==="mail")return `<div class="wk mail"><div class="tm">${x.date?esc(x.kind==="todo"&&!x.start?"Due":tLabel(x)):"Anytime"}</div>
     <div class="info"><b>${esc(x.title)}</b>${x.details?`<span>${esc(x.details)}</span>`:""}${todoLine(x.todo,x.date)}<span class="src">${kb}${srcTag("gmail",x.subject||x.from||"",mailLink(x))}<em>Not on your calendar</em></span>
       <div class="wkbtns">${MAILPICK.has(x.i)?`<button class="pk ${S.mailOff.has(x.i)?"":"on"}" data-act="mpick" data-v="${x.i}" role="checkbox" aria-checked="${!S.mailOff.has(x.i)}" aria-label="Include ${esc(x.title)}">${S.mailOff.has(x.i)?"":"✓"}</button>`:x.date?`<button class="add ${x.added?"done":""}" data-act="wkcal" data-v="${x.i}">${x.added?"Added ✓":"Add to cal"}</button>`:""}<button class="btn ghost" data-act="wksave" data-v="${x.i}">Save</button><button class="x" data-act="wkhide" data-v="${x.i}" aria-label="Hide this">✕</button></div></div></div>`;
-  if(row.src==="cal")return `<div class="wk cal"><div class="tm">${esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b>${row.full&&x.desc?`<span class="desc">${esc(x.desc.length>160?x.desc.slice(0,157)+"…":x.desc)}</span>`:""}<span class="src">${kb}${srcTag("cal",x.cal||"",x.link)}${x.location?`<span>${esc(x.location)}</span>`:""}</span></div><button class="x rmx" data-act="calrm" data-v="${esc(calKeyOf(x))}" aria-label="Remove ${esc(x.title)}">✕</button></div>`;
+  if(row.src==="cal")return `<div class="wk cal"><div class="tm">${esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b>${row.full&&x.desc?`<span class="desc">${esc(x.desc.length>160?x.desc.slice(0,157)+"…":x.desc)}</span>`:""}<span class="src">${kb}${srcTag("cal",x.cal||"",x.link)}${x.location?`<span>${esc(x.location)}</span>`:""}</span>${attachedHTML("c:"+calPKey(x))}</div><button class="x rmx" data-act="calrm" data-v="${esc(calKeyOf(x))}" aria-label="Remove ${esc(x.title)}">✕</button></div>`;
   const n=x.n,c=n.category,cat=`<span class="catl"><span class="dot" style="background:${catColor(c)}"></span>${esc(c||"Unsorted")}</span>`;
   if(row.src==="task"){const t=n.task;
     return `<div class="wk rem task"><div class="tm"><button class="tick" data-act="tdone" data-id="${n.id}" aria-label="Mark ${esc(t.title)} done"></button></div><div class="info"><b>${esc(x.title)}</b><span class="src">${kb}${noteTag(n)}${cat}${x.overdue?`<span class="over">Overdue</span>`:""}</span></div><button class="x rmx" data-act="tdismiss" data-id="${n.id}" aria-label="Remove ${esc(t.title)}">✕</button></div>`}
-  return `<div class="wk rem"><div class="tm">${esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b>${remTodoLine(n,x)}${row.full&&x.ev&&x.ev.details?`<span class="desc">${esc(x.ev.details)}</span>`:""}<span class="src">${kb}${noteTag(n)}${cat}${x.location?`<span>${esc(x.location)}</span>`:""}${x.added?"<span>On cal ✓</span>":""}</span></div>${x.ev?`<button class="x rmx" data-act="evdismiss" data-id="${n.id}" data-v="${x.ev.id}" aria-label="Remove ${esc(x.title)}">✕</button>`:""}</div>`;
+  return `<div class="wk rem"><div class="tm">${esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b>${remTodoLine(n,x)}${row.full&&x.ev&&x.ev.details?`<span class="desc">${esc(x.ev.details)}</span>`:""}<span class="src">${kb}${noteTag(n)}${cat}${x.location?`<span>${esc(x.location)}</span>`:""}${x.added?"<span>On cal ✓</span>":""}</span>${x.ev?attachedHTML("r:"+x.ev.id):""}</div>${x.ev?`<button class="x rmx" data-act="evdismiss" data-id="${n.id}" data-v="${x.ev.id}" aria-label="Remove ${esc(x.title)}">✕</button>`:""}</div>`;
 }
 function weekHTML(){
   const head=`<div style="margin-top:18px"><h1 style="font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em">Week</h1>
@@ -1534,7 +1587,7 @@ function noteKids(n){
 function catPill(n){return `<button class="cat catbtn" data-act="catpick" data-id="${n.id}" aria-label="Category: ${esc(n.category||"Unsorted")}. Tap to change."><span class="dot" style="background:${catColor(n.category)}"></span>${esc(n.category||"Unsorted")}<span class="caret" aria-hidden="true">▾</span></button>`;}
 function adultNames(){return [meName(),partnerName()]}
 function peopleNames(){return [...adultNames(),...kidNames().filter(k=>!adultNames().includes(k))]}
-function personColor(k){if(k===meName())return "#A33C6E";if(k===partnerName())return "#55677D";return kidColor(k)}
+function personColor(k){if(k===meName())return "#C04B85";if(k===partnerName())return "#6F8AA8";return kidColor(k)}
 function kidBadges(list){return (list||[]).map(k=>`<span class="kidb" style="--kc:${personColor(k)}">${esc(k)}</span>`).join("")}
 // whoever she picked for a note (or its parent note)
 function peopleSrc(n){if(!n)return null;const par=n.parent&&S.notes.find(x=>x.id===n.parent);return n.peopleSet?n:par&&par.peopleSet?par:null}
@@ -1573,7 +1626,23 @@ function syncWho(n){
   for(const c of kidsOf(n))if(c.task&&!c.peopleSet){c.task.who=who;c.task.whoSet=true;putNote(c)}
 }
 function kidFilter(rows){return S.kid==="all"?rows:rows.filter(r=>rowKids(r).includes(S.kid))}
-function kidChips(){
+function kidChips(){return ""}
+function pfButton(){
+  const k=S.kid;
+  if(k==="all")return `<button class="iconbtn pfb" data-act="pfilter" aria-label="Showing everyone. Tap to filter by person."><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.2c3 .2 5 2.6 5 5.8"/></svg></button>`;
+  return `<button class="iconbtn pfb on" data-act="pfilter" style="--kc:${personColor(k)}" aria-label="Showing ${esc(k)} only. Tap to change.">${esc(k.slice(0,1))}</button>`;
+}
+function pfBar(){
+  if(S.kid==="all")return "";
+  return `<div class="pfbar" style="--kc:${personColor(S.kid)}"><span>Showing <b>${esc(S.kid)}</b> only</span><button class="linkbtn" data-act="pfset" data-v="all">Show everyone</button></div>`;
+}
+function renderPFilter(){
+  const opt=(v,l,c)=>`<button class="catopt ${S.kid===v?"on":""}" data-act="pfset" data-v="${esc(v)}">${c?`<span class="dot" style="background:${c}"></span>`:""}${esc(l)}${S.kid===v?'<span class="ck">✓</span>':""}</button>`;
+  $("#sheet").innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Show">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2>Show</h2><button class="iconbtn" data-act="closesheet" aria-label="Close">✕</button></div>
+    <div class="catgrid">${opt("all","Everyone","")}${peopleNames().map(k=>opt(k,k,personColor(k))).join("")}</div></div>`;
+}
+function kidChips_old(){
   const ks=peopleNames();if(!ks.length)return "";
   return `<div class="chips kidchips"><button class="chip" data-act="kidf" data-v="all" aria-pressed="${S.kid==="all"}">Everyone</button>${ks.map(k=>`<button class="chip" data-act="kidf" data-v="${esc(k)}" aria-pressed="${S.kid===k}"><span class="dot" style="background:${personColor(k)}"></span>${esc(k)}</button>`).join("")}</div>`;
 }
@@ -1825,7 +1894,8 @@ function render(){
   $("#topnav").innerHTML=`<button data-act="nav" data-v="today" ${S.view==="today"?'aria-current="page"':""}>Today</button><button data-act="nav" data-v="notes" ${S.view==="notes"?'aria-current="page"':""}>Feed</button><button data-act="nav" data-v="week" ${S.view==="week"?'aria-current="page"':""}>Week</button><button data-act="nav" data-v="todo" ${S.view==="todo"?'aria-current="page"':""}>To do${dn?`<span class="ct">${dn}</span>`:""}</button>`;
   if(S.view==="upcoming")S.view="week";
   const ae=document.activeElement,fid=ae&&(ae.id==="cap"||ae.id==="q"||ae.id==="askin")?ae.id:null,ss=fid?ae.selectionStart:0,se=fid?ae.selectionEnd:0;
-  $("#main").innerHTML=(S.view==="today"?todayHTML():S.view==="week"?weekHTML():S.view==="upcoming"?upcomingHTML():S.view==="todo"?todoHTML():notesHTML())+selBarHTML();
+  const ps=$("#pfslot");if(ps)ps.innerHTML=pfButton();
+  $("#main").innerHTML=pfBar()+(S.view==="today"?todayHTML():S.view==="week"?weekHTML():S.view==="upcoming"?upcomingHTML():S.view==="todo"?todoHTML():notesHTML())+selBarHTML();
   if(fid){const el=document.getElementById(fid);if(el){el.focus({preventScroll:true});try{el.setSelectionRange(ss,se)}catch(_){}}}
 }
 function captureHTML(){
@@ -1863,14 +1933,41 @@ function taskHTML(n){
   if(S.sel){const on=S.sel.has(key);return `<div class="todo sel ${on?"on":""}" data-act="sel" data-v="${key}" role="checkbox" aria-checked="${on}">
     <span class="selc">${on?"✓":""}</span>
     <div class="info"><b>${esc(t.title)}</b><span>${esc([whoName(t)==="Me"?"":"For "+whoName(t),dueLabel(t),repeatLabel(t)].filter(Boolean).join(" · "))}</span></div></div>`}
-  return `<div class="todo ${st}${over?" over":""}">
-    <button class="tick" data-act="${st==="done"?"reopen":"tdone"}" data-id="${n.id}" aria-label="${st==="done"?"Mark not done":"Mark done"}">${st==="done"?"✓":""}</button>
-    <div class="info"><b>${esc(t.title)}</b><span>${esc([dueLabel(t),repeatLabel(t)].filter(Boolean).join(" · "))}</span>
-      ${whoBtn(notePeople(n),`data-act="who" data-id="${n.id}"`)}</div>
-    ${st==="done"?"":`<button class="add ${t.added||t.cal&&t.cal.match?"done":""}" data-act="tcal" data-id="${n.id}">${t.added||t.cal&&t.cal.match?"On cal ✓":"Add"}</button>`}
-    ${st==="done"?"":`<button class="x sh" data-act="tshare" data-id="${n.id}" aria-label="Send this to-do to someone"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button>`}
-    <button class="x" data-act="tdismiss" data-id="${n.id}" aria-label="Remove this to-do">✕</button></div>`;
+  const done=st==="done",onCal=t.added||t.cal&&t.cal.match,ppl=notePeople(n),src=noteSrc(n);
+  const when=done?dueLabel(t):shortDue(t);
+  const srcI=src==="cal"?(n.calLink?`<a class="tsrc" href="${esc(n.calLink)}" target="_blank" rel="noopener" aria-label="Open in Google Calendar">📅</a>`:`<span class="tsrc">📅</span>`):src==="gmail"?`<span class="tsrc">✉</span>`:"";
+  return `<div class="todo c ${st}${over?" over":""}">
+    <button class="tick" data-act="${done?"reopen":"tdone"}" data-id="${n.id}" aria-label="${done?"Mark not done":"Mark "+esc(t.title)+" done"}">${done?"✓":""}</button>
+    <div class="tb"><button class="tt" data-act="tmenu" data-id="${n.id}">${esc(t.title)}</button>
+      <div class="tm2"><span class="${over?"od":""}">${esc(when)}</span>${t.repeat?`<span>↻ ${esc(REPEATS[t.repeat]||"")}</span>`:""}${ppl.length?`<button class="tppl" data-act="who" data-id="${n.id}" aria-label="For ${esc(ppl.join(", "))}. Tap to change.">${ppl.map(k=>`<span style="color:${personColor(k)}">${esc(k)}</span>`).join(", ")}</button>`:`<button class="tppl add" data-act="who" data-id="${n.id}">+ Who</button>`}${onCal&&!done?`<span class="ocal">On cal</span>`:""}${t.onEvent&&!done?`<span>📌 ${esc((t.onEvent.title||"event").slice(0,32))}</span>`:""}${srcI}</div></div>
+    <button class="more" data-act="tmenu" data-id="${n.id}" aria-label="More for ${esc(t.title)}">⋯</button></div>`;
 }
+function shortDue(t){
+  const diff=Math.round((parseYmd(t.due)-parseYmd(todayStr()))/864e5);
+  if(diff<-1)return `${-diff} days late`;if(diff===-1)return "Yesterday";if(diff===0)return "Today";if(diff===1)return "Tomorrow";
+  return parseYmd(t.due).toLocaleDateString(undefined,diff<7?{weekday:"short"}:{weekday:"short",month:"short",day:"numeric"});
+}
+/* ---------- to-do actions ---------- */
+function openTaskMenu(id){S.tmId=id;S.sheetMode="tmenu";renderSheet();$("#sheet").hidden=false}
+function renderTaskMenu(){
+  const n=S.notes.find(x=>x.id===S.tmId);if(!n||!n.task)return closeSheet();
+  const t=n.task,done=!!t.doneAt,onCal=t.added||t.cal&&t.cal.match,par=n.parent&&S.notes.find(x=>x.id===n.parent);
+  const row=(act,label,extra="",cls="")=>`<button class="mrow ${cls}" data-act="${act}" data-id="${n.id}" ${extra}>${label}</button>`;
+  $("#sheet").innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="To-do">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><h2 style="font-size:19px;line-height:1.3">${esc(t.title)}</h2><button class="iconbtn" data-act="closesheet" aria-label="Close">✕</button></div>
+    <p class="hint" style="margin-top:4px">${esc([dueLabel(t),repeatLabel(t)].filter(Boolean).join(" · "))}${par&&par.title?" · from "+esc(par.title):""}</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${catPill(n)}${noteTag(n)}</div>
+    <div class="mlist">
+      ${row(done?"mreopen":"mdone",done?"↺ Mark not done":"✓ Mark done")}
+      ${row("mwho","👤 Who's it for · <span class=\"hint\" style=\"margin:0\">"+esc(notePeople(n).join(", ")||"no one yet")+"</span>")}
+      ${done?"":onCal?`<div class="mrow off">📅 On your calendar</div>`:row("mcal","📅 Add to Google Calendar")}
+      ${done?"":t.onEvent?row("mface","⬆ Keep in my to-dos"):(()=>{const ev=taskEvent(n);return ev?row("mtuck",`📌 Move to the event · <span class="hint" style="margin:0">${esc(ev.title.slice(0,40))}, ${esc(parseYmd(ev.date).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</span>`):""})()}
+      ${done?"":row("mshare","↗ Send to someone")}
+      ${row("medit","✎ Edit")}
+      ${row("mrm","✕ Remove","","danger")}
+    </div></div>`;
+}
+
 function evHTML(n,ev){
   const s=evStart(ev);if(!s)return "";
   const past=s<new Date(new Date().toDateString()),key="e:"+n.id+":"+ev.id;
@@ -1889,7 +1986,7 @@ function notesHTML(){
   const list=S.notes.filter(n=>!n.parent&&!n.fromCal&&(S.filter==="All"||n.category===S.filter)&&(S.kid==="all"||notePeople(n).includes(S.kid))&&(!q||[n.text,n.title,n.summary,n.category,...(n.events||[]).map(e=>e.title+" "+e.location)].join(" ").toLowerCase().includes(q)));
   let html=captureHTML();
   const due=dueTasks();
-  if(due.length)html+=`<section class="duebox"><div class="duehead"><h2>To do</h2><span>${due.length} waiting</span></div>${due.map(n=>`<div class="duerow">${taskHTML(n)}</div>`).join("")}</section>`;
+  if(due.length)html+=`<section class="duebox"><div class="duehead"><h2>To do</h2><span>${due.length} waiting</span></div><div class="tlist">${due.map(taskHTML).join("")}</div></section>`;
   if(S.notes.length){
     html+=`<label class="search">${icon.search}<input id="q" type="search" placeholder="Search notes" value="${esc(S.q)}" autocomplete="off"></label>
     <div class="chips"><button class="chip" data-act="filter" data-v="All" aria-pressed="${S.filter==="All"}">All <span class="n">${S.notes.filter(n=>!n.parent).length}</span></button>
@@ -1902,14 +1999,17 @@ function notesHTML(){
 }
 function todoHTML(){
   const mine=n=>S.kid==="all"||notePeople(n).includes(S.kid);
-  const all=S.notes.filter(n=>n.task&&mine(n)),now=dueTasks().filter(mine),later=all.filter(n=>taskState(n.task)==="later").sort((a,b)=>a.task.due<b.task.due?-1:1),
+  const tucked=S.notes.filter(n=>n.task&&!inFace(n)&&mine(n)).sort((a,b)=>a.task.due<b.task.due?-1:1);
+  const all=S.notes.filter(n=>n.task&&mine(n)),now=dueTasks().filter(mine),later=all.filter(n=>inFace(n)&&taskState(n.task)==="later").sort((a,b)=>a.task.due<b.task.due?-1:1),
     done=all.filter(n=>taskState(n.task)==="done").sort((a,b)=>a.task.doneAt<b.task.doneAt?1:-1).slice(0,15);
   const row=n=>{const last=(n.task.log||[]).slice(-1)[0],par=n.parent&&S.notes.find(x=>x.id===n.parent);return `<article class="note"><div class="nhead">${catPill(n)}${noteTag(n)}${par&&par.title?`<span class="t" style="font-family:var(--body)">from ${esc(par.title.slice(0,40))}</span>`:""}${last&&n.task.repeat?`<span class="t">last done ${esc(new Date(last.doneAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}))}</span>`:""}</div>${taskHTML(n)}<div class="nfoot"><button class="btn ghost" data-act="edit" data-id="${n.id}">Edit</button></div></article>`};
-  let html=`<div style="margin-top:18px"><h1 style="font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em">To do</h1><p class="hint" style="margin-top:2px">To-dos stay at the top of Notes every day until you check them off. Tap Me or ${esc(partnerName())} on a to-do to reassign it.</p></div>`+kidChips()+selTools(true);
+  let html=`<div style="margin-top:18px"><h1 style="font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em">To do</h1><p class="hint" style="margin-top:2px">Tap a to-do for options. Tap a name to change who it's for.</p></div>`+kidChips()+selTools(true);
   if(!all.length)return html+`<div class="empty"><h2>No to-dos yet</h2>Just type it like a note: "Give the dogs heartworm meds on the 15th of every month" or "Return library books Friday."</div>`;
-  html+=`<div class="day">Due now</div>`+(now.length?now.map(row).join(""):`<div class="empty" style="margin-top:0">All caught up.</div>`);
-  if(later.length)html+=`<div class="day">Coming up</div>`+later.map(row).join("");
-  if(done.length)html+=`<div class="day">Done</div>`+done.map(row).join("");
+  const grp=l=>`<article class="note tcard"><div class="tlist">${l.map(taskHTML).join("")}</div></article>`;
+  html+=`<div class="day">Due now</div>`+(now.length?grp(now):`<div class="empty" style="margin-top:0">All caught up.</div>`);
+  if(later.length)html+=`<div class="day">Coming up</div>`+grp(later);
+  if(tucked.length)html+=`<div class="day">With their events</div><p class="hint" style="margin:-4px 2px 8px">These show under the event on Today and Week, not in your to-dos.</p>`+grp(tucked);
+  if(done.length)html+=`<div class="day">Done</div>`+grp(done);
   return html+`<div class="pad"></div>`;
 }
 function calStatusHTML(){
@@ -2012,6 +2112,18 @@ document.addEventListener("click",e=>{
   else if(a==="whocal"){e.stopPropagation();openWho({calP:v,title:b.dataset.t})}
   else if(a==="whotog"){S.whoSel.has(v)?S.whoSel.delete(v):S.whoSel.add(v);renderWho()}
   else if(a==="whosave")saveWho();
+  else if(a==="tmenu")openTaskMenu(b.dataset.id);
+  else if(a==="mdone"){closeSheet();completeTask(b.dataset.id)}
+  else if(a==="mreopen"){const n=S.notes.find(x=>x.id===b.dataset.id);closeSheet();if(n&&n.task){n.task.doneAt=null;putNote(n);render()}}
+  else if(a==="mwho"){const id=b.dataset.id;closeSheet();openWho({noteId:id})}
+  else if(a==="mcal"){const id=b.dataset.id;closeSheet();addTaskToCal(id)}
+  else if(a==="mtuck"){const n=S.notes.find(x=>x.id===b.dataset.id);closeSheet();if(n&&n.task){const ev=taskEvent(n);if(ev){n.task.onEvent=ev;n.task.onEventManual=true;putNote(n);render();toast(`Moved to ${ev.title.slice(0,40)}. You'll see it with the event.`)}}}
+  else if(a==="mface"){const n=S.notes.find(x=>x.id===b.dataset.id);closeSheet();if(n&&n.task){delete n.task.onEvent;n.task.onEventManual=true;putNote(n);render();toast("Back in your to-dos")}}
+  else if(a==="mshare"){const id=b.dataset.id;closeSheet();shareTask(id)}
+  else if(a==="medit"){const id=b.dataset.id;closeSheet();openEdit(id)}
+  else if(a==="mrm"){const id=b.dataset.id;closeSheet();tryRemove(id,null)}
+  else if(a==="pfilter"){S.sheetMode="pfilter";renderSheet();$("#sheet").hidden=false}
+  else if(a==="pfset"){S.kid=v;closeSheet();scrollTo(0,0)}
   else if(a==="lb"){const lb=$("#lb");lb.innerHTML=`<button data-act="lbclose" aria-label="Close">✕</button><img src="${blobUrl(v)}" alt="">`;lb.hidden=false}
   else if(a==="lbclose")$("#lb").hidden=true;
 });
