@@ -212,6 +212,15 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spinner{animation-duration:3s}}
 .pad{height:48px}
+.pk{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--accent);background:var(--surface);color:var(--accent-ink);font-weight:800;font-size:14px;display:grid;place-items:center;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pk.on{background:var(--accent)}
+.ev.off{opacity:.55}
+.pickbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.pickbar .btn.primary{min-height:40px}
+.calsel{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 12px;font-size:14px;font-weight:600;color:var(--ink);max-width:160px;min-height:40px}
+.mailbar{background:var(--surface);border:1.5px solid var(--accent);border-radius:var(--r);padding:11px 14px;margin-top:14px;box-shadow:var(--shadow)}
+.mailbar b{font-size:15px}
+.wk .wkbtns .pk{margin-right:2px}
 .vh{font-size:clamp(28px,7vw,36px);font-weight:800;letter-spacing:-.03em}
 .stag{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;border-radius:6px;padding:1px 7px;background:var(--accent-soft);color:var(--accent);text-decoration:none!important;white-space:nowrap;max-width:100%;line-height:1.6}
 .stag .sx{font-weight:500;opacity:.85;overflow:hidden;text-overflow:ellipsis;max-width:170px}
@@ -278,7 +287,7 @@ const EXTRA_COLORS=["#E0702C","#5A9A3A","#C2478E","#3E8FB0","#8C6A3F","#6A7A92",
 const TZ=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||"America/Chicago"}catch(e){return "America/Chicago"}})();
 
 /* ---------- state ---------- */
-const S={notes:[],ready:false,view:"notes",filter:"All",q:"",draft:"",shots:[],busy:{},edit:null,confirmDel:false,db:null,sel:null,who:"all"};
+const S={pickOff:new Set(),pickOn:new Set(),mailOff:new Set(),notes:[],ready:false,view:"notes",filter:"All",q:"",draft:"",shots:[],busy:{},edit:null,confirmDel:false,db:null,sel:null,who:"all"};
 function partnerName(){try{return (localStorage.getItem("partner_name")||"").trim()||"Partner"}catch(e){return "Partner"}}
 const whoName=t=>t&&t.who==="partner"?partnerName():"Me";
 
@@ -718,15 +727,147 @@ function gcMaybeRefresh(){
 function dupToast(match,noteId,evId){toast(`Already on your calendar as "${match}"`,false,{label:"Add anyway",act:evId?"calforce":"tcalforce",id:noteId,v:evId||""})}
 function addToCal(noteId,evId,force){
   const n=S.notes.find(x=>x.id===noteId),ev=n&&n.events.find(x=>x.id===evId);if(!ev)return;
+  if(!force&&ev.added){toast("Already added to your calendar",false,{label:"Add again",act:"calforce",id:noteId,v:evId});return}
   if(!force&&ev.cal&&ev.cal.match){dupToast(ev.cal.match,noteId,evId);return}
-  const url=gcalUrl(ev);if(!url){toast("That date couldn't be read");return}
-  window.open(url,"_blank","noopener");
-  ev.added=true;putNote(n);setTimeout(render,300);
+  if(!evStart(ev)){toast("That date couldn't be read");return}
+  addItems([{kind:"ev",n,ev}]);
 }
 function addTaskToCal(noteId,force){
   const n=S.notes.find(x=>x.id===noteId);if(!n||!n.task)return;const t=n.task;
+  if(!force&&t.added){toast("Already added to your calendar",false,{label:"Add again",act:"tcalforce",id:noteId});return}
   if(!force&&!t.added&&t.cal&&t.cal.match){dupToast(t.cal.match,noteId,null);return}
-  window.open(taskGcalUrl(n),"_blank","noopener");t.added=true;putNote(n);setTimeout(render,300);
+  addItems([{kind:"task",n}]);
+}
+
+/* ---------- adding to Google Calendar directly (no browser window) ---------- */
+const CB={busy:false};
+const lt=d=>`${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+function evBody(ev,desc){
+  const b={summary:ev.title||"Event"};
+  if(ev.location)b.location=ev.location;
+  const d=[ev.details,desc].filter(Boolean).join("\n\n");if(d)b.description=d;
+  const s=evStart(ev);
+  if(!ev.start){b.start={date:ev.date};b.end={date:ymd(addDays(1,ev.endDate&&ev.endDate>ev.date?ev.endDate:ev.date))}}
+  else{let e;if(ev.end){const [h,m]=ev.end.split(":").map(Number);e=new Date(s);e.setHours(h,m);if(e<=s)e.setDate(e.getDate()+1)}else e=new Date(s.getTime()+36e5);
+    b.start={dateTime:lt(s),timeZone:TZ};b.end={dateTime:lt(e),timeZone:TZ}}
+  return b;
+}
+function itemBody(x){
+  if(x.kind==="task"){const t=x.n.task,b={summary:t.title||x.n.title||"To-do",start:{date:t.due},end:{date:ymd(addDays(1,t.due))}};
+    if(t.repeat)b.recurrence=["RRULE:FREQ="+t.repeat.toUpperCase()];if(x.n.text)b.description=x.n.text.slice(0,800);return b}
+  if(x.kind==="mail")return evBody(x.m,x.m.subject?"From email: "+x.m.subject:"");
+  return evBody(x.ev,"");
+}
+function itemUrl(x){return x.kind==="task"?taskGcalUrl(x.n):gcalUrl(x.kind==="mail"?x.m:x.ev)}
+function editCals(){return (GC.cals||[]).filter(c=>/^(owner|writer)$/.test(c.accessRole||""))}
+function calTarget(){const t=lsGet("cal_target","");const l=editCals();return t&&(!l.length||l.some(c=>c.id===t))?t:"primary"}
+function calTargetName(){const t=calTarget(),c=(GC.cals||[]).find(x=>t==="primary"?x.primary:x.id===t);return c?(c.summaryOverride||c.summary||"your calendar"):"your calendar"}
+function calSelect(){
+  const l=editCals();if(l.length<2)return "";const t=calTarget();
+  return `<select class="calsel" data-caltarget aria-label="Calendar to add to">${l.map(c=>`<option value="${esc(c.primary?"primary":c.id)}" ${(t==="primary"?c.primary:c.id===t)?"selected":""}>${esc(c.summaryOverride||c.summary||"Calendar")}</option>`).join("")}</select>`;
+}
+function savePending(list){
+  const p=list.map(x=>x.kind==="mail"?{k:"mail",title:x.m.title,date:x.m.date}:{k:x.kind,id:x.n.id,ev:x.ev?x.ev.id:null});
+  try{sessionStorage.setItem("cal_pending",JSON.stringify(p))}catch(e){}
+}
+function takePending(){
+  let p=[];try{p=JSON.parse(sessionStorage.getItem("cal_pending")||"[]");sessionStorage.removeItem("cal_pending")}catch(e){}
+  return p.map(o=>{
+    if(o.k==="mail"){const i=(W.mail.items||[]).findIndex(m=>m.title===o.title&&m.date===o.date);return i<0?null:{kind:"mail",m:W.mail.items[i],i}}
+    const n=S.notes.find(x=>x.id===o.id);if(!n)return null;
+    if(o.k==="task")return n.task?{kind:"task",n}:null;
+    const ev=(n.events||[]).find(e=>e.id===o.ev);return ev?{kind:"ev",n,ev}:null;
+  }).filter(Boolean);
+}
+async function gcInsert(body){
+  const tok=gcTok();if(!tok)throw {code:"noauth"};
+  const r=await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calTarget())}/events?sendUpdates=none`,{method:"POST",headers:{Authorization:"Bearer "+tok,"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(r.status===401){lsSet("gcal_token",null);throw {code:"noauth"}}
+  if(r.status===403){let m="";try{m=(await r.json()).error.message||""}catch(e){}throw {code:/insufficient|scope/i.test(m)?"scope":"forbidden"}}
+  if(!r.ok)throw {code:"http",status:r.status};
+  return r.json();
+}
+async function addItems(list){
+  list=list.filter(Boolean);if(!list.length||CB.busy)return;
+  // Google not connected: fall back to opening Google Calendar for one item
+  if(!gcOn()){window.open(itemUrl(list[0]),"_blank","noopener");markAdded(list[0],null);return}
+  if(!canEditCal()||!gcTok()){
+    savePending(list);lsSet("gcal_edit",true);
+    toast(canEditCal()?"Reconnecting to Google…":"Google will ask once to let remembrd add events");
+    setTimeout(()=>gcAuth(false),canEditCal()?300:1200);return;
+  }
+  CB.busy=true;render();
+  let ok=0;const failed=[];
+  for(let k=0;k<list.length;k++){
+    const x=list[k];
+    try{const r=await gcInsert(itemBody(x));markAdded(x,r&&r.id);ok++}
+    catch(e){
+      if(e.code==="noauth"||e.code==="scope"){if(e.code==="scope")lsSet("gcal_scope","");savePending(list.slice(k));lsSet("gcal_edit",true);CB.busy=false;persistAdded(list);gcAuth(false);return}
+      if(e.code==="forbidden"){CB.busy=false;persistAdded(list);render();toast("Google won't let remembrd add to that calendar. Pick another one.");return}
+      failed.push(x);
+    }
+  }
+  CB.busy=false;persistAdded(list);
+  W.cal.at=0;if(aggView())weekLoadCal(true);else render();
+  const where=calTargetName();
+  toast(failed.length?`Added ${ok} of ${list.length}. ${failed.length} didn't go through. Try again.`:ok===1?`Added to ${where}`:`Added ${ok} events to ${where}`);
+}
+function markAdded(x,gid){
+  if(x.kind==="mail"){x.m.added=true;if(gid)x.m.gcalId=gid;return}
+  const o=x.kind==="task"?x.n.task:x.ev;o.added=true;if(gid)o.gcalId=gid;
+}
+function persistAdded(list){
+  const ns=new Set(list.filter(x=>x.n).map(x=>x.n));ns.forEach(n=>putNote(n));
+  if(list.some(x=>x.kind==="mail"))weekPersist();
+  S.pickOff.clear();S.pickOn.clear();S.mailOff.clear();
+}
+
+/* ---------- picking several dates at once ---------- */
+// a date is checked unless she unticks it; dates already on her calendar start unticked
+function pickable(ev){return ev.date>=todayStr()&&!ev.added}
+function picked(ev){return ev.cal&&ev.cal.match?S.pickOn.has(ev.id):!S.pickOff.has(ev.id)}
+function notePickList(n){return (n.events||[]).filter(pickable)}
+function noteEventsHTML(n){
+  const evs=n.events||[],list=notePickList(n);
+  if(S.sel||list.length<2)return evs.map(ev=>evHTML(n,ev)).join("");
+  const on=list.filter(picked);
+  return evs.map(ev=>pickable(ev)?evPickHTML(n,ev):evHTML(n,ev)).join("")+
+    `<div class="pickbar"><button class="btn primary" data-act="pickadd" data-id="${n.id}" ${on.length&&!CB.busy?"":"disabled"}>${CB.busy?'<span class="spinner"></span> Adding…':`Add ${on.length} to calendar`}</button>${gcOn()?calSelect():""}<span style="flex:1"></span><button class="linkbtn" data-act="pickall" data-id="${n.id}" style="font-size:13.5px">${on.length===list.length?"Untick all":"Tick all"}</button></div>`;
+}
+function evPickHTML(n,ev){
+  const s=evStart(ev),on=picked(ev);
+  return `<div class="ev ${on?"":"off"}"><button class="pk ${on?"on":""}" data-act="pick" data-id="${n.id}" data-v="${ev.id}" role="checkbox" aria-checked="${on}" aria-label="Include ${esc(ev.title)}">${on?"✓":""}</button><div class="cal"><div class="m">${s.toLocaleDateString(undefined,{month:"short"})}</div><div class="d">${s.getDate()}</div></div>
+    <div class="info"><b>${esc(ev.title)}</b><span>${esc(fmtEvWhen(ev))}${ev.location?" · "+esc(ev.location):""}</span>${ev.cal&&ev.cal.match?`<span class="oncal">Already on your calendar as "${esc(ev.cal.match)}"</span>`:""}</div>
+    <button class="x" data-act="evdismiss" data-id="${n.id}" data-v="${ev.id}" aria-label="Remove this date">✕</button></div>`;
+}
+function pickAdd(noteId){
+  const n=S.notes.find(x=>x.id===noteId);if(!n)return;
+  addItems(notePickList(n).filter(picked).map(ev=>({kind:"ev",n,ev})));
+}
+function pickToggle(noteId,evId){
+  const n=S.notes.find(x=>x.id===noteId),ev=n&&n.events.find(e=>e.id===evId);if(!ev)return;
+  if(ev.cal&&ev.cal.match){S.pickOn.has(evId)?S.pickOn.delete(evId):S.pickOn.add(evId)}
+  else{S.pickOff.has(evId)?S.pickOff.delete(evId):S.pickOff.add(evId)}
+  render();
+}
+function pickAll(noteId){
+  const n=S.notes.find(x=>x.id===noteId);if(!n)return;const list=notePickList(n),all=list.every(picked);
+  list.forEach(ev=>{if(ev.cal&&ev.cal.match){all?S.pickOn.delete(ev.id):S.pickOn.add(ev.id)}else{all?S.pickOff.add(ev.id):S.pickOff.delete(ev.id)}});
+  render();
+}
+// email dates on Today / This week
+let MAILPICK=new Set();
+function mailBarHTML(cands){
+  MAILPICK=new Set(cands.length>=2?cands:[]);
+  if(cands.length<2)return "";
+  const on=cands.filter(i=>!S.mailOff.has(i));
+  return `<div class="mailbar"><b>${cands.length} email dates aren't on your calendar</b><p class="hint" style="margin-top:2px">Untick any you don't want, then add the rest at once.</p>
+    <div class="pickbar"><button class="btn primary" data-act="mailadd" data-v="${cands.join(",")}" ${on.length&&!CB.busy?"":"disabled"}>${CB.busy?'<span class="spinner"></span> Adding…':`Add ${on.length} to calendar`}</button>${calSelect()}</div></div>`;
+}
+function mailCands(rows){return rows.filter(r=>r.src==="mail"&&r.x.date&&!r.x.added&&r.x.date>=todayStr()).map(r=>r.x.i)}
+function mailAdd(v){
+  const ids=String(v||"").split(",").map(Number).filter(i=>!S.mailOff.has(i));
+  addItems(ids.map(i=>W.mail.items[i]?{kind:"mail",m:W.mail.items[i],i}:null));
 }
 function gcConnect(){
   try{localStorage.removeItem("gcal_client_id")}catch(e){}
@@ -797,7 +938,7 @@ function renderSettings(){
   ${sheetErr?`<div class="err">${esc(sheetErr)}</div>`:""}
   <button class="btn primary big" data-act="savekey" style="margin-top:10px" ${sheetBusy?"disabled":""}>${sheetBusy?"Checking…":"Save key"}</button>
   <span class="lbl">Google calendar &amp; email</span>
-  <p class="hint" style="margin-top:0">Read-only. remembrd checks your calendar so it won't suggest adding something that's already there, and This week shows your calendar plus dates pulled from your email.</p>
+  <p class="hint" style="margin-top:0">remembrd checks your calendar so it won't suggest something that's already there, adds the dates you pick, and shows your calendar plus dates pulled from your email. Email stays read-only.</p>
   ${gcOn()?`<p style="margin:6px 0 0;font-weight:600">${lsGet("gcal_need",false)?"Needs a quick reconnect":"Connected"}${lsGet("gcal_hint","")?` <span class="hint" style="font-weight:400">· ${esc(lsGet("gcal_hint",""))}</span>`:""}</p>
     <div class="sheetfoot" style="margin-top:8px">${lsGet("gcal_need",false)?`<button class="btn primary" data-act="gcauth">Reconnect</button>`:`<button class="btn" data-act="gccheck">Check now</button>`}<button class="btn ghost danger" data-act="gcoff">Disconnect</button></div>`
   :`<p class="hint" style="margin-top:6px">You'll sign in with Google and approve read-only access. Google may warn that the app isn't verified. Tap <b>Advanced</b>, then <b>Go to remembrd</b>.</p>
@@ -948,7 +1089,7 @@ function wkRowHTML(row){
   const x=row.x;
   if(row.src==="mail")return `<div class="wk mail"><div class="tm">${x.date?esc(x.kind==="todo"&&!x.start?"Due":tLabel(x)):"Anytime"}</div>
     <div class="info"><b>${esc(x.title)}</b>${x.details?`<span>${esc(x.details)}</span>`:""}<span class="src">${srcTag("gmail",x.subject||x.from||"",mailLink(x))}<em>Not on your calendar</em></span>
-      <div class="wkbtns">${x.date?`<button class="add ${x.added?"done":""}" data-act="wkcal" data-v="${x.i}">${x.added?"Added ✓":"Add to cal"}</button>`:""}<button class="btn ghost" data-act="wksave" data-v="${x.i}">Save</button><button class="x" data-act="wkhide" data-v="${x.i}" aria-label="Hide this">✕</button></div></div></div>`;
+      <div class="wkbtns">${MAILPICK.has(x.i)?`<button class="pk ${S.mailOff.has(x.i)?"":"on"}" data-act="mpick" data-v="${x.i}" role="checkbox" aria-checked="${!S.mailOff.has(x.i)}" aria-label="Include ${esc(x.title)}">${S.mailOff.has(x.i)?"":"✓"}</button>`:x.date?`<button class="add ${x.added?"done":""}" data-act="wkcal" data-v="${x.i}">${x.added?"Added ✓":"Add to cal"}</button>`:""}<button class="btn ghost" data-act="wksave" data-v="${x.i}">Save</button><button class="x" data-act="wkhide" data-v="${x.i}" aria-label="Hide this">✕</button></div></div></div>`;
   if(row.src==="cal")return `<div class="wk cal"><div class="tm">${esc(tLabel(x))}</div><div class="info"><b>${esc(x.title)}</b>${row.full&&x.desc?`<span class="desc">${esc(x.desc.length>160?x.desc.slice(0,157)+"…":x.desc)}</span>`:""}<span class="src">${srcTag("cal",x.cal||"",x.link)}${x.location?`<span>${esc(x.location)}</span>`:""}</span></div></div>`;
   const n=x.n,c=n.category,cat=`<span class="catl"><span class="dot" style="background:${catColor(c)}"></span>${esc(c||"Unsorted")}</span>`;
   if(row.src==="task"){const t=n.task;
@@ -970,7 +1111,7 @@ function weekHTML(){
   return head+`<p class="hint calst">${st}</p>${note}</div>`+weekBody();
 }
 function weekBody(){
-  const M=weekModel();let html="";
+  const M=weekModel();let html=mailBarHTML(mailCands([...M.days.flatMap(d=>d.rows),...(W.later?M.later.map(x=>({src:"mail",x})):[])]));
   const today=todayStr(),tm=ymd(addDays(1));
   if(M.nodate.length)html+=`<div class="day">From email · no date</div><article class="note">${M.nodate.map(x=>wkRowHTML({src:"mail",x})).join("")}</article>`;
   for(const {d,rows} of M.days){
@@ -985,7 +1126,8 @@ function weekPersist(){lsSet("week_mail",W.mail)}
 function weekCal(i){
   const m=W.mail.items[i];if(!m)return;
   if(!m.date){toast("This one has no date. Tap Save to keep it as a to-do.");return}
-  window.open(gcalUrl(m),"_blank","noopener");m.added=true;weekPersist();W.cal.at=0;setTimeout(render,300);
+  if(m.added){toast("Already added to your calendar");return}
+  addItems([{kind:"mail",m,i}]);
 }
 async function weekSave(i){
   const m=W.mail.items[i];if(!m)return;
@@ -1074,6 +1216,7 @@ function todayHTML(){
   if(!gcOn())html+=`<div class="keycard"><h2>Connect Google</h2><p class="hint" style="margin-top:2px">Connect Google in Settings to see your calendar and email dates here.</p><button class="btn primary" data-act="settings" style="margin-top:10px;width:100%">Open Settings</button></div>`;
   html+=briefHTML();
   const M=weekModel();
+  html+=mailBarHTML(mailCands([...M.days[0].rows,...M.days[1].rows]));
   M.days.slice(0,2).forEach(({d,rows},k)=>{
     html+=`<div class="day">${k?"Tomorrow":"Today"} · ${esc(parseYmd(d).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</div><article class="note wkday">${rows.length?rows.map(r=>wkRowHTML({...r,full:true})).join(""):`<p class="hint" style="margin:0">Nothing scheduled</p>`}</article>`;
   });
@@ -1199,6 +1342,7 @@ function upcoming(){
   return out.sort((a,b)=>a.s-b.s);
 }
 function render(){
+  MAILPICK=new Set();
   const up=upcoming().length,dn=dueTasks().length;
   $("#topnav").innerHTML=`<button data-act="nav" data-v="today" ${S.view==="today"?'aria-current="page"':""}>Today</button><button data-act="nav" data-v="notes" ${S.view==="notes"?'aria-current="page"':""}>Notes</button><button data-act="nav" data-v="week" ${S.view==="week"?'aria-current="page"':""}>This week</button><button data-act="nav" data-v="todo" ${S.view==="todo"?'aria-current="page"':""}>To do${dn?`<span class="ct">${dn}</span>`:""}</button><button data-act="nav" data-v="upcoming" ${S.view==="upcoming"?'aria-current="page"':""}>Upcoming${up?`<span class="ct">${up}</span>`:""}</button>`;
   const ae=document.activeElement,fid=ae&&(ae.id==="cap"||ae.id==="q"||ae.id==="askin")?ae.id:null,ss=fid?ae.selectionStart:0,se=fid?ae.selectionEnd:0;
@@ -1229,7 +1373,7 @@ function noteHTML(n){
     ${n.summary?`<div class="ntext">${esc(n.summary)}</div>`:""}
     ${n.images&&n.images.length?`<div class="nimg">${n.images.map(id=>`<button data-act="lb" data-v="${id}" aria-label="View screenshot"><img src="${blobUrl(id)}" alt=""></button>`).join("")}</div>`:""}
     ${n.task?taskHTML(n):""}
-    ${(n.events||[]).map(ev=>evHTML(n,ev)).join("")}
+    ${noteEventsHTML(n)}
     ${n.err?`<div class="err">${esc(n.err)}</div>`:""}
     <div class="nfoot">${n.status==="unsorted"?`<button class="btn" data-act="resort" data-id="${n.id}">Sort</button>`:""}<button class="btn ghost" data-act="edit" data-id="${n.id}">Edit</button></div>
   </article>`;
@@ -1312,6 +1456,11 @@ document.addEventListener("click",e=>{
   const a=b.dataset.act,v=b.dataset.v;
   if(a==="save")saveNote();
   else if(a==="nav"){S.view=v;render();scrollTo(0,0);if(v==="week"||v==="today")weekLoad(false)}
+  else if(a==="pick")pickToggle(b.dataset.id,v);
+  else if(a==="pickall")pickAll(b.dataset.id);
+  else if(a==="pickadd")pickAdd(b.dataset.id);
+  else if(a==="mpick"){const i=+v;S.mailOff.has(i)?S.mailOff.delete(i):S.mailOff.add(i);render()}
+  else if(a==="mailadd")mailAdd(v);
   else if(a==="askclear"){A.res=null;A.err="";A.q="";render()}
   else if(a==="askex"){A.q=v;askRun()}
   else if(a==="dupdel")dupDelete(v);
@@ -1373,6 +1522,7 @@ document.addEventListener("change",async e=>{
   const t=e.target;
   if(t.id==="shotin"||t.id==="camin"){const files=[...(t.files||[])].slice(0,6);t.value="";
     for(const f of files){const blob=await prepareImage(f);S.shots.push({blob,url:URL.createObjectURL(blob),cam:t.id==="camin"})}render();const c=$("#cap");c&&c.focus()}
+  else if(t.matches&&t.matches("[data-caltarget]")){lsSet("cal_target",t.value);render()}
   else if(t.id==="ecat"){$("#enewcat").hidden=t.value!=="__new";if(t.value==="__new")$("#enewcat").focus()}
 });
 document.addEventListener("keydown",e=>{
@@ -1397,8 +1547,9 @@ render();
     for(const n of S.notes)if(n.status==="sorting"){n.status="unsorted";n.err=null}
   }catch(e){console.warn("no storage",e);toast("Notes can't be saved in this browser (private browsing?)")}
   S.ready=true;render();
-  if(gcBack==="ok"){if(!lsGet("gcal_last",0))toast("Google connected");gcCheck(true);if(aggView())weekLoad(false)}
+  if(gcBack==="ok"){const pend=takePending();if(pend.length){gcCals().catch(()=>{}).then(()=>addItems(pend))}else if(!lsGet("gcal_last",0))toast("Google connected");gcCheck(true);if(aggView())weekLoad(false)}
   else if(gcBack&&gcBack!=="state"&&(()=>{try{return sessionStorage.getItem("gcal_mode")==="manual"}catch(e){return false}})())toast("Google didn't connect. Try Connect Google again in Settings.");
+  if(gcBack&&gcBack!=="ok")takePending();
   for(const n of S.notes.filter(x=>x.status==="unsorted"&&(!x.err||x.retry)))sortNote(n.id);
   if(gcBack===null){if(gcTok()){gcCheck(false);if(aggView())weekLoad(false)}else gcMaybeRefresh()}
   briefMaybe();
