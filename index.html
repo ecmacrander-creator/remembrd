@@ -1519,7 +1519,7 @@ ${mails.map((m,i)=>`=== EMAIL ${i+1}\nFrom: ${m.from}\nSent: ${m.date}\nSubject:
   }catch(e){console.warn("week mail",e);
     if(e&&e.code==="http"&&e.status===403){lsSet("gcal_scope","calendar-only");W.err="email"}
     else if(e&&e.code!=="noauth")W.err=e.code==="bad_key"?"Gemini didn't accept your key. Check it in Settings.":"Couldn't scan your email ("+(errCopy(e)||"error")+"). Try Refresh."}
-  finally{W.mailBusy=false;W.stage="";render()}
+  finally{W.mailBusy=false;W.stage="";render();linkTaskEmails()}
 }
 function remItems(){
   const out=[],today=todayStr();
@@ -2108,6 +2108,43 @@ function noteHTML(n){
     <div class="nfoot">${n.status==="unsorted"?`<button class="btn" data-act="resort" data-id="${n.id}">Sort</button>`:""}<button class="btn ghost" data-act="edit" data-id="${n.id}">Edit</button></div>
   </article>`;
 }
+/* ---------- find the email behind to-dos that came from the calendar or a screenshot ---------- */
+const LINKGEN=new Set("send buy complete accept decline check give watch bring make pay sign get take call email schedule finish submit register video training house".split(" "));
+let LINKBUSY=false;
+async function linkTaskEmails(only){
+  if(LINKBUSY||!gcOn()||!gcTok()||!hasGmail()||!getKey())return only?"nogoogle":null;
+  const list=(only||S.notes.filter(n=>n.task&&!n.task.doneAt&&!noteMsgId(n)&&!n.mailTried)).slice(0,8);if(!list.length)return null;
+  LINKBUSY=true;let linked=0;
+  try{
+    const cands=[];
+    for(const n of list){
+      const ctx=[n.task.title,n.parent?"":String(n.text||"").split("\n")[0].replace(/^From your calendar:\s*/,"")].join(" ");
+      const kw=[...new Set(words(ctx))].filter(w=>!LINKGEN.has(w)&&!/^\d+$/.test(w)).slice(0,4);
+      if(!kw.length){cands.push({n,mails:[]});continue}
+      const l=await gcGet("users/me/messages",{q:`newer_than:120d (${kw.join(" OR ")})`,maxResults:"6"},GMAIL).catch(e=>{if(e.code==="noauth")throw e;return {}});
+      const got=await Promise.all((l.messages||[]).map(m=>gcGet("users/me/messages/"+m.id,{format:"metadata"},GMAIL).catch(()=>null)));
+      cands.push({n,mails:got.filter(Boolean).map(m=>{const hd=k=>((m.payload&&m.payload.headers||[]).find(x=>x.name.toLowerCase()===k)||{}).value||"";return {id:m.id,from:hd("from").replace(/\s*<.*>$/,"").replace(/"/g,""),date:hd("date"),subject:hd("subject"),snip:String(m.snippet||"").slice(0,240)}})});
+    }
+    const ask=cands.filter(c=>c.mails.length);
+    if(ask.length){
+      const r=await geminiJSON(`Match each to-do to the email it came from. Pick an email only if it is clearly the source (same event, task or request), not just a similar topic. Otherwise null.
+Return JSON {"matches":[{"todo":1,"email":2 or null}]}.
+
+${ask.map((c,i)=>`TO-DO ${i+1}: ${c.n.task.title} (due ${c.n.task.due})${c.n.text?" | "+String(c.n.text).replace(/\s+/g," ").slice(0,200):""}
+${c.mails.map((m,j)=>`  EMAIL ${j+1}: from ${m.from}, ${m.date}, "${m.subject}": ${m.snip}`).join("\n")}`).join("\n\n")}`,[]);
+      for(const m of (Array.isArray(r.matches)?r.matches:[])){const c=ask[(+m.todo||0)-1],e=c&&m.email!=null&&c.mails[(+m.email||0)-1];if(e){c.n.msgId=e.id;linked++}}
+    }
+    for(const c of cands){c.n.mailTried=true;await putNote(c.n)}
+  }catch(e){console.warn("link emails",e)}
+  finally{LINKBUSY=false}
+  if(linked)render();
+  return linked;
+}
+async function findEmailFor(id){
+  const n=S.notes.find(x=>x.id===id);if(!n)return;closeSheet();toast("Looking for the email…");
+  const r=await linkTaskEmails([n]);
+  toast(r==="nogoogle"?"Connect Google with email access in Settings first":r?"Linked to the email":"Couldn't find a matching email");
+}
 // the Gmail message a note (or its parent note) came from
 function noteMsgId(n){if(!n)return "";if(n.msgId)return n.msgId;const p=n.parent&&S.notes.find(x=>x.id===n.parent);return p&&p.msgId||""}
 function taskHTML(n){
@@ -2117,7 +2154,8 @@ function taskHTML(n){
     <div class="info"><b>${esc(t.title)}</b><span>${esc([whoName(t)==="Me"?"":"For "+whoName(t),dueLabel(t),repeatLabel(t)].filter(Boolean).join(" · "))}</span></div></div>`}
   const done=st==="done",onCal=t.added||t.cal&&t.cal.match,ppl=notePeople(n),src=noteSrc(n),mid=noteMsgId(n);
   const when=done?dueLabel(t):shortDue(t);
-  const srcI=src==="cal"?(n.calLink?`<a class="tsrc" href="${esc(n.calLink)}" target="_blank" rel="noopener" aria-label="Open in Google Calendar">📅</a>`:`<span class="tsrc">📅</span>`):mid?`<a class="tsrc tmail" href="${esc(mailLink({msgId:mid}))}" target="_blank" rel="noopener" aria-label="Open the email">✉ Email</a>`:src==="gmail"?`<span class="tsrc">✉</span>`:"";
+  const calI=src==="cal"?(n.calLink?`<a class="tsrc" href="${esc(n.calLink)}" target="_blank" rel="noopener" aria-label="Open in Google Calendar">📅</a>`:`<span class="tsrc">📅</span>`):"";
+  const srcI=mid?calI+`<a class="tsrc tmail" href="${esc(mailLink({msgId:mid}))}" target="_blank" rel="noopener" aria-label="Open the email">✉ Email</a>`:src==="cal"?(n.calLink?`<a class="tsrc" href="${esc(n.calLink)}" target="_blank" rel="noopener" aria-label="Open in Google Calendar">📅</a>`:`<span class="tsrc">📅</span>`):mid?`<a class="tsrc tmail" href="${esc(mailLink({msgId:mid}))}" target="_blank" rel="noopener" aria-label="Open the email">✉ Email</a>`:src==="gmail"?`<span class="tsrc">✉</span>`:"";
   return `<div class="todo c ${st}${over?" over":""}">
     <button class="tick" data-act="${done?"reopen":"tdone"}" data-id="${n.id}" aria-label="${done?"Mark not done":"Mark "+esc(t.title)+" done"}">${done?"✓":""}</button>
     <div class="tb"><button class="tt" data-act="tmenu" data-id="${n.id}">${esc(t.title)}</button>
@@ -2144,7 +2182,7 @@ function renderTaskMenu(){
       ${row("mwho","👤 Who's it for · <span class=\"hint\" style=\"margin:0\">"+esc(notePeople(n).join(", ")||"no one yet")+"</span>")}
       ${done?"":onCal?`<div class="mrow off">📅 On your calendar</div>`:row("mcal","📅 Add to Google Calendar")}
       ${done?"":t.onEvent?row("mface","⬆ Keep in my to-dos"):(()=>{const ev=taskEvent(n);return ev?row("mtuck",`📌 Move to the event · <span class="hint" style="margin:0">${esc(ev.title.slice(0,40))}, ${esc(parseYmd(ev.date).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</span>`):""})()}
-      ${noteMsgId(n)?`<a class="mrow" href="${esc(mailLink({msgId:noteMsgId(n)}))}" target="_blank" rel="noopener">✉ Open the email</a>`:""}
+      ${noteMsgId(n)?`<a class="mrow" href="${esc(mailLink({msgId:noteMsgId(n)}))}" target="_blank" rel="noopener">✉ Open the email</a>`:row("mfindmail","✉ Find the email this came from")}
       ${done?"":row("mshare","↗ Send to someone")}
       ${done?"":row("mdetail","🗂 Not a to-do · move to Details")}
       ${row("medit","✎ Edit")}
@@ -2322,6 +2360,7 @@ document.addEventListener("click",e=>{
   else if(a==="mtuck"){const n=S.notes.find(x=>x.id===b.dataset.id);closeSheet();if(n&&n.task){const ev=taskEvent(n);if(ev){n.task.onEvent=ev;n.task.onEventManual=true;putNote(n);render();toast(`Moved to ${ev.title.slice(0,40)}. You'll see it with the event.`)}}}
   else if(a==="mface"){const n=S.notes.find(x=>x.id===b.dataset.id);closeSheet();if(n&&n.task){delete n.task.onEvent;n.task.onEventManual=true;putNote(n);render();toast("Back in your to-dos")}}
   else if(a==="mdetail")moveToDetails(b.dataset.id);
+  else if(a==="mfindmail")findEmailFor(b.dataset.id);
   else if(a==="qans")answerQ(b.dataset.id,v);
   else if(a==="qskip"){const n=S.notes.find(x=>x.id===b.dataset.id);if(n){n.q=null;putNote(n);render()}}
   else if(a==="evdet"){S.detOpen=S.detOpen||new Set();S.detOpen.has(v)?S.detOpen.delete(v):S.detOpen.add(v);render()}
@@ -2400,6 +2439,7 @@ render();
   if(!lsGet("mig_uniform",false)){for(const n of S.notes.filter(x=>x.task&&!x.task.doneAt&&/\bwear\b.*\buniforms?\b.*\b(den|pack)\b/i.test(x.task.title)))try{await moveToDetails(n.id)}catch(e){}lsSet("mig_uniform",true)}
   try{const d=await dedupeTasks();if(d)toast(`Cleared ${d} duplicate to-do${d===1?"":"s"}`)}catch(e){console.warn("dedupe",e)}
   cleanupTodosToDetails();
+  setTimeout(()=>linkTaskEmails(),5000);
   render();
   if(gcBack==="ok"){const pend=takePending();if(pend.length){gcCals().catch(()=>{}).then(()=>addItems(pend))}else if(!lsGet("gcal_last",0))toast("Google connected");gcCheck(true);if(aggView())weekLoad(false)}
   else if(gcBack&&gcBack!=="state"&&(()=>{try{return sessionStorage.getItem("gcal_mode")==="manual"}catch(e){return false}})())toast("Google didn't connect. Try Connect Google again in Settings.");
