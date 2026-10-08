@@ -201,6 +201,8 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.
 .todo.c .tppl.add{color:var(--ink-3);font-weight:600}
 .todo.c .ocal{color:var(--good);font-weight:600}
 .todo.c .tsrc{text-decoration:none;font-size:12px}
+.tsrc.tmail{font-weight:700;font-size:12px;color:#B3261E;background:#FCE8E6;border-radius:999px;padding:1px 8px}
+a.mrow{text-decoration:none}
 .todo.c .more{flex:none;border:0;background:none;color:var(--ink-3);font-size:20px;line-height:1;width:32px;height:28px;border-radius:8px;cursor:pointer;margin-top:-2px}
 .duebox .tlist{margin-top:6px}
 .tcard{padding-top:6px;padding-bottom:6px}
@@ -2106,14 +2108,16 @@ function noteHTML(n){
     <div class="nfoot">${n.status==="unsorted"?`<button class="btn" data-act="resort" data-id="${n.id}">Sort</button>`:""}<button class="btn ghost" data-act="edit" data-id="${n.id}">Edit</button></div>
   </article>`;
 }
+// the Gmail message a note (or its parent note) came from
+function noteMsgId(n){if(!n)return "";if(n.msgId)return n.msgId;const p=n.parent&&S.notes.find(x=>x.id===n.parent);return p&&p.msgId||""}
 function taskHTML(n){
   const t=n.task,st=taskState(t),over=st==="now"&&t.due<todayStr(),key="t:"+n.id;
   if(S.sel){const on=S.sel.has(key);return `<div class="todo sel ${on?"on":""}" data-act="sel" data-v="${key}" role="checkbox" aria-checked="${on}">
     <span class="selc">${on?"✓":""}</span>
     <div class="info"><b>${esc(t.title)}</b><span>${esc([whoName(t)==="Me"?"":"For "+whoName(t),dueLabel(t),repeatLabel(t)].filter(Boolean).join(" · "))}</span></div></div>`}
-  const done=st==="done",onCal=t.added||t.cal&&t.cal.match,ppl=notePeople(n),src=noteSrc(n);
+  const done=st==="done",onCal=t.added||t.cal&&t.cal.match,ppl=notePeople(n),src=noteSrc(n),mid=noteMsgId(n);
   const when=done?dueLabel(t):shortDue(t);
-  const srcI=src==="cal"?(n.calLink?`<a class="tsrc" href="${esc(n.calLink)}" target="_blank" rel="noopener" aria-label="Open in Google Calendar">📅</a>`:`<span class="tsrc">📅</span>`):src==="gmail"?`<span class="tsrc">✉</span>`:"";
+  const srcI=src==="cal"?(n.calLink?`<a class="tsrc" href="${esc(n.calLink)}" target="_blank" rel="noopener" aria-label="Open in Google Calendar">📅</a>`:`<span class="tsrc">📅</span>`):mid?`<a class="tsrc tmail" href="${esc(mailLink({msgId:mid}))}" target="_blank" rel="noopener" aria-label="Open the email">✉ Email</a>`:src==="gmail"?`<span class="tsrc">✉</span>`:"";
   return `<div class="todo c ${st}${over?" over":""}">
     <button class="tick" data-act="${done?"reopen":"tdone"}" data-id="${n.id}" aria-label="${done?"Mark not done":"Mark "+esc(t.title)+" done"}">${done?"✓":""}</button>
     <div class="tb"><button class="tt" data-act="tmenu" data-id="${n.id}">${esc(t.title)}</button>
@@ -2140,6 +2144,7 @@ function renderTaskMenu(){
       ${row("mwho","👤 Who's it for · <span class=\"hint\" style=\"margin:0\">"+esc(notePeople(n).join(", ")||"no one yet")+"</span>")}
       ${done?"":onCal?`<div class="mrow off">📅 On your calendar</div>`:row("mcal","📅 Add to Google Calendar")}
       ${done?"":t.onEvent?row("mface","⬆ Keep in my to-dos"):(()=>{const ev=taskEvent(n);return ev?row("mtuck",`📌 Move to the event · <span class="hint" style="margin:0">${esc(ev.title.slice(0,40))}, ${esc(parseYmd(ev.date).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))}</span>`):""})()}
+      ${noteMsgId(n)?`<a class="mrow" href="${esc(mailLink({msgId:noteMsgId(n)}))}" target="_blank" rel="noopener">✉ Open the email</a>`:""}
       ${done?"":row("mshare","↗ Send to someone")}
       ${done?"":row("mdetail","🗂 Not a to-do · move to Details")}
       ${row("medit","✎ Edit")}
